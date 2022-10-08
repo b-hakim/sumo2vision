@@ -10,7 +10,6 @@ import sumolib
 import traci
 
 from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to, in_segment, move_point, get_new_abs_pos
-from solver import Solver
 from sumo_visualizer import SumoVisualizer
 from vehicle_info import Vehicle
 
