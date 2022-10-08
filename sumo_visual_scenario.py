@@ -528,8 +528,8 @@ class Simulation:
             if timestamps_recorded == self.hyper_params["timestamps"]:
                 break
 
-        # if self.hyper_params["save_visual"]:
-        #     viz.save_img()
+        if self.hyper_params["save_visual"]:
+            viz.save_img()
 
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
