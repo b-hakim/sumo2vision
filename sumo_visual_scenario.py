@@ -310,55 +310,14 @@ class Simulation:
         # return route_distance
         return min_distance, min_dist_destination
 
-    def make_unique_requests(self, score_per_cv2x):
-        receivers = {}
-
-        for sender_cv2x_id, receiver_score in score_per_cv2x.items():
-            receiver_cv2x, score, perceived_object = receiver_score
-
-            if receiver_cv2x in receivers:
-                if receivers[receiver_cv2x][1] < score:
-                    receivers[receiver_cv2x] = [sender_cv2x_id, score, perceived_object]
-            else:
-                receivers[receiver_cv2x] = [sender_cv2x_id, score, perceived_object]
-
-        return receivers
-
-    def get_channel_gain_vehicle(self, tx_pos, receiver_vehicles, K):
-        h_n = {}
-        # wavelength = 5.5*10**-7
-        # d0_squared = 10000
-        # wavelength_squared = 3.025e-13
-
-        y = 4
-
-        for vehicle in receiver_vehicles:
-            distance = euclidean_distance(tx_pos, vehicle.get_pos())
-            # h_n_k = (distance**-4)*random.random()*np.random.exponential(1)
-            tmp = []
-            # this approach is canceled as it is more accurate and detailed but related to the exact wavelengths
-            # changed by approach 2 (as sent in the email)
-            # d0 = 100
-            # L = 20 * np.log10(wavelength / (4 * np.pi * d0))
-
-            for i in range(K):
-                # r = 10 + random.random() * 90 # random number between 10 to 100
-                # channel_rand = random.randint(80, 120)/100
-                # h_n_k = channel_rand * L * (d0 / distance) ** y
-                h_n_k = np.random.exponential(1)/distance**y
-                # h_n_k = 1
-                tmp.append(h_n_k)
-
-            h_n[vehicle.vehicle_id] = (tmp)
-
-        return h_n
-
     def run(self, use_seed=True):
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
         sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end']
         traci.start(sumoCmd)
         step = 0
+        timestamps_recorded = 0
+        time_stamps_stride = 0
 
         if self.hyper_params["save_visual"]:
             viz = SumoVisualizer(self.hyper_params)
@@ -404,7 +363,6 @@ class Simulation:
 
             # 1) Get All Vehicles with Wireless
             vehicle_ids = traci.vehicle.getIDList()
-            # print(vehicle_list)
 
             for vid in vehicle_ids:
                 v_found = False
@@ -424,10 +382,15 @@ class Simulation:
             for vid in need_to_remove:
                 vehicles.pop(vid)
 
-            # print(len(vehicle_ids))
-
-            if len(vehicle_ids) < self.hyper_params['tot_num_vehicles']:
+            if  timestamps_recorded != 0 and time_stamps_stride % self.hyper_params["timestamps_stride"] != 0:
+                time_stamps_stride += 1
                 continue
+
+            if len(vehicle_ids) < self.hyper_params['tot_num_vehicles'] and timestamps_recorded == 0:
+                continue
+
+            timestamps_recorded += 1
+            time_stamps_stride = 1
 
             if self.hyper_params["save_visual"]:
                 viz.draw_vehicles(vehicles.values())
@@ -482,19 +445,39 @@ class Simulation:
 
                 tot_visible_objects += len(non_cv2x_ids)
 
-            save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
-                                     "map_" + str(self.hyper_params['cv2x_N'])
-                                     + "_" + str(self.hyper_params['fov'])
-                                     + "_" + str(self.hyper_params["view_range"])
-                                     + "_" + str(self.hyper_params["num_RBs"])
-                                     + "_" + str(self.hyper_params["tot_num_vehicles"])
-                                     + "_" + str(self.hyper_params['time_threshold'])
-                                     + "_" + str(self.hyper_params['perception_probability'])
-                                     + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                                     + "_" + str(self.hyper_params["noise_distance"])
-                                     + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
-                                     + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
-                                     + ".png")
+            if self.hyper_params["timestamps"] == 1:
+                save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
+                                         "map_" + str(self.hyper_params['cv2x_N'])
+                                         + "_" + str(self.hyper_params['fov'])
+                                         + "_" + str(self.hyper_params["view_range"])
+                                         + "_" + str(self.hyper_params["num_RBs"])
+                                         + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                         + "_" + str(self.hyper_params['time_threshold'])
+                                         + "_" + str(self.hyper_params['perception_probability'])
+                                         + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                         + "_" + str(self.hyper_params["noise_distance"])
+                                         + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                         + ("_cont_prob" if self.hyper_params[
+                                             "continous_probability"] else "_discont_prob")
+                                         + ".png")
+            else:
+                save_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']),
+                                         "map_video",
+                                         "map_" + str(self.hyper_params['cv2x_N'])
+                                         + "_" + str(self.hyper_params['fov'])
+                                         + "_" + str(self.hyper_params["view_range"])
+                                         + "_" + str(self.hyper_params["num_RBs"])
+                                         + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                         + "_" + str(self.hyper_params['time_threshold'])
+                                         + "_" + str(self.hyper_params['perception_probability'])
+                                         + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                         + "_" + str(self.hyper_params["noise_distance"])
+                                         + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                         + ("_cont_prob" if self.hyper_params[
+                                             "continous_probability"] else "_discont_prob")
+                                         + f"_{timestamps_recorded}"
+                                         + ".png")
+
             if self.hyper_params["save_visual"]:
                 viz.save_img(save_path)
 
@@ -506,26 +489,44 @@ class Simulation:
             if not os.path.isdir(os.path.join(path, "saved_state")):
                 os.makedirs(os.path.join(path, "saved_state"))
 
-            save_state = os.path.join(path, "saved_state",
-                         "state_" + str(self.hyper_params['cv2x_N'])
-                         + "_" + str(self.hyper_params['fov'])
-                         + "_" + str(self.hyper_params["view_range"])
-                         + "_" + str(self.hyper_params["num_RBs"])
-                         + "_" + str(self.hyper_params["tot_num_vehicles"])
-                         + "_" + str(self.hyper_params['time_threshold'])
-                         + "_" + str(self.hyper_params['perception_probability'])
-                         + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                         + "_" + str(self.hyper_params["noise_distance"])
-                         + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
-                         + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
-                         + ".pkl")
+            if self.hyper_params["timestamps"] == 1:
+                save_state = os.path.join(path, "saved_state",
+                             "state_" + str(self.hyper_params['cv2x_N'])
+                             + "_" + str(self.hyper_params['fov'])
+                             + "_" + str(self.hyper_params["view_range"])
+                             + "_" + str(self.hyper_params["num_RBs"])
+                             + "_" + str(self.hyper_params["tot_num_vehicles"])
+                             + "_" + str(self.hyper_params['time_threshold'])
+                             + "_" + str(self.hyper_params['perception_probability'])
+                             + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                             + "_" + str(self.hyper_params["noise_distance"])
+                             + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                             + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
+                             + ".pkl")
+            else:
+                save_state = os.path.join(path, "saved_state",
+                                          "state_" + str(self.hyper_params['cv2x_N'])
+                                          + "_" + str(self.hyper_params['fov'])
+                                          + "_" + str(self.hyper_params["view_range"])
+                                          + "_" + str(self.hyper_params["num_RBs"])
+                                          + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                          + "_" + str(self.hyper_params['time_threshold'])
+                                          + "_" + str(self.hyper_params['perception_probability'])
+                                          + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                          + "_" + str(self.hyper_params["noise_distance"])
+                                          + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                          + ("_cont_prob" if self.hyper_params[
+                                              "continous_probability"] else "_discont_prob")
+                                          +f"_{timestamps_recorded}"
+                                          + ".pkl")
 
             with open(save_state, 'wb') as fw:
                 pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,
                              scores_per_cv2x, los_statuses, vehicles,  cv2x_perceived_non_cv2x_vehicles,
                              cv2x_vehicles_perception_visible, tot_perceived_objects, tot_visible_objects), fw)
 
-            break
+            if timestamps_recorded == self.hyper_params["timestamps"]:
+                break
 
         # if self.hyper_params["save_visual"]:
         #     viz.save_img()
@@ -566,8 +567,9 @@ if __name__ == '__main__':
     hyper_params['save_gnss'] = False
     hyper_params['continous_probability'] = False
     hyper_params["avg_speed_meter_per_sec"] = 10
+    hyper_params["timestamps"] = 10
+    hyper_params["timestamps_stride"] = 10
 
     # while True:
     sim = Simulation(hyper_params, "1_0")
     sim.run(True)
-
