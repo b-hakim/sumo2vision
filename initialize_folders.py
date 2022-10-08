@@ -58,12 +58,12 @@ for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_
         shutil.copy(maps + "/" + map_name, dirname + "/map.osm")
         shutil.copy(maps + "/" + base_pos_name, dirname + "/basestation_pos.txt")
 
-src_files = ['/media/bassel/Entertainment/sumo_traffic/sumo_map/default/net.sumo.cfg',
-            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/net2geojson.py',
-            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/osmNetconvert.typ.xml',
-            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/randomTrips.py',
-            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/typemap.xml',
-            '/media/bassel/Entertainment/sumo_traffic/sumo_map/default/typedistrib1.xml']
+src_files = [os.path.dirname(__file__) + '/sumo_files/net.sumo.cfg',
+            os.path.dirname(__file__) + '/sumo_files/net2geojson.py',
+            os.path.dirname(__file__) + '/sumo_files/osmNetconvert.typ.xml',
+            os.path.dirname(__file__) + '/sumo_files/randomTrips.py',
+            os.path.dirname(__file__) + '/sumo_files/typemap.xml',
+            os.path.dirname(__file__) + '/sumo_files/typedistrib1.xml']
 
 n_threads = 12
 n = n_threads if n_threads<len(map_file_names) else len(map_file_names)
