@@ -11,7 +11,8 @@ import pickle
 class RunSimulationProcess(multiprocessing.Process):
     def __init__(self, map, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                 noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000 / 3600):
+                 noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000 / 3600, timestamp=1,
+                 timestamp_stride=100):
         # multiprocessing.Process.__init__(self)
         super(RunSimulationProcess, self).__init__()
 
@@ -34,6 +35,8 @@ class RunSimulationProcess(multiprocessing.Process):
         self.repeat = repeat
         self.cont_prob = cont_prob
         self.avg_speed_meter_per_sec = avg_speed_meter_per_sec
+        self.timestamp = timestamp
+        self.timestamp_stride = timestamp_stride
 
     def run(self):
         print(f"Simulation Thread {str(self.sim_id)} started with a batchsize={len(self.traffics)} ")
@@ -60,6 +63,8 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["noise_distance"] = self.noise_distance
             hyper_params["continous_probability"] = self.cont_prob
             hyper_params["avg_speed_meter_per_sec"] = self.avg_speed_meter_per_sec
+            hyper_params["timestamp"] = self.timestamp
+            hyper_params["timestamp_stride"] = self.timestamp_stride
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
@@ -93,7 +98,8 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600):
+                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1,
+                   timestamp_stride=100):
     n_scenarios = 10
     s = time.time()
 
@@ -101,7 +107,8 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
         print(f"Scenario: toronto_{i}")
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
-                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob, avg_speed_meter_per_sec)
+                                    use_saved_seed, save_gnss, noise_distance, repeat, cont_prob,
+                                    avg_speed_meter_per_sec, timestamp, timestamp_stride)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -113,7 +120,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
-                                avg_speed_meter_per_sec=40000 / 3600):
+                                avg_speed_meter_per_sec=40000 / 3600, timestamp=1, timestamp_stride=100):
     time_threshold = 3
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
@@ -183,7 +190,8 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                                  estimate_detection_error=estimate_detection_error,
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
                                                  noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob,
-                                                 avg_speed_meter_per_sec= avg_speed_meter_per_sec)
+                                                 avg_speed_meter_per_sec= avg_speed_meter_per_sec, timestamp=timestamp,
+                                                 timestamp_stride=timestamp_stride)
 
         simulation_thread.start()
         list_threads.append(simulation_thread)
