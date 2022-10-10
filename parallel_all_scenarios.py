@@ -9,7 +9,7 @@ import pickle
 
 
 class RunSimulationProcess(multiprocessing.Process):
-    def __init__(self, map, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles, id, time_threshold,
+    def __init__(self, map, cv2x_percentage, fov, view_range, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
                  noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000 / 3600, timestamp=1,
                  timestamp_stride=100):
@@ -24,7 +24,7 @@ class RunSimulationProcess(multiprocessing.Process):
             self.traffics = map
 
         self.cv2x_percentage, self.fov, self.view_range, \
-        self.num_RBs, self.tot_num_vehicles, self.perception_probability = cv2x_percentage, fov, view_range, num_RBs,\
+        self.tot_num_vehicles, self.perception_probability = cv2x_percentage, fov, view_range, \
                                                                            tot_num_vehicles, perception_probability
         self.use_saved_seed = use_saved_seed
         self.sim_id = id
@@ -51,9 +51,6 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["cv2x_N"] = self.cv2x_percentage
             hyper_params["fov"] = self.fov
             hyper_params["view_range"] = self.view_range
-            hyper_params["num_RBs"] = self.num_RBs
-            # hyper_params['message_size'] = 2000 * 8 # should be 490
-            hyper_params['message_size'] = 490 # should be 490
             hyper_params['tot_num_vehicles'] = self.tot_num_vehicles
             hyper_params['time_threshold'] = self.time_threshold
             hyper_params['save_visual'] = True
@@ -69,22 +66,38 @@ class RunSimulationProcess(multiprocessing.Process):
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
 
-            results_path = os.path.join(os.path.dirname(hyper_params['scenario_path']),
-                                        "results_" + str(hyper_params['cv2x_N'])
-                                        + "_" + str(hyper_params['fov'])
-                                        + "_" + str(hyper_params["view_range"])
-                                        + "_" + str(hyper_params["num_RBs"])
-                                        + "_" + str(hyper_params["tot_num_vehicles"])
-                                        + "_" + str(hyper_params['time_threshold'])
-                                        + "_" + str(hyper_params['perception_probability'])
-                                        + ("_ede" if hyper_params["estimate_detection_error"] else "_nede")
-                                        + "_" + str(hyper_params["noise_distance"])
-                                        + ("_egps" if hyper_params["noise_distance"] else "")
-                                        + ("_cont_prob" if hyper_params["continous_probability"] else "_discont_prob")
-                                        + ".txt")
+            if hyper_params["timestamp"] == 1:
+                state_path = os.path.join(traffic, "saved_state",
+                                 "state_" + str(self.hyper_params['cv2x_N'])
+                                 + "_" + str(self.hyper_params['fov'])
+                                 + "_" + str(self.hyper_params["view_range"])
+                                 + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                 + "_" + str(self.hyper_params['time_threshold'])
+                                 + "_" + str(self.hyper_params['perception_probability'])
+                                 + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                 + "_" + str(self.hyper_params["noise_distance"])
+                                 + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                 + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
+                                 + ".pkl")
+            else:
+                state_path = os.path.join(path, "saved_state",
+                                             "state_" + str(self.hyper_params['cv2x_N'])
+                                             + "_" + str(self.hyper_params['fov'])
+                                             + "_" + str(self.hyper_params["view_range"])
+                                             + "_" + str(self.hyper_params["tot_num_vehicles"])
+                                             + "_" + str(self.hyper_params['time_threshold'])
+                                             + "_" + str(self.hyper_params['perception_probability'])
+                                             + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
+                                             + "_" + str(self.hyper_params["noise_distance"])
+                                             + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
+                                             + ("_cont_prob" if self.hyper_params[
+                                                 "continous_probability"] else "_discont_prob")
+                                             + f"_{hyper_params['timestamp']}'"
+                                             + ".json")
 
-            if os.path.isfile(results_path) and not self.repeat:
+            if os.path.isfile(state_path) and not self.repeat:
                 continue
+
 
             print(f"Scenario: {traffic[traffic.index('toronto_'):]} started")
 
@@ -96,7 +109,7 @@ class RunSimulationProcess(multiprocessing.Process):
         print(f"Simulation Thread {str(self.sim_id)} ended with {time.time()-tot_time_start} seconds")
 
 
-def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
+def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
                    noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1,
                    timestamp_stride=100):
@@ -105,7 +118,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
 
     for i in range(n_scenarios):
         print(f"Scenario: toronto_{i}")
-        run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs,
+        run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
                                     use_saved_seed, save_gnss, noise_distance, repeat, cont_prob,
                                     avg_speed_meter_per_sec, timestamp, timestamp_stride)
@@ -117,7 +130,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_
     print("#######################################################################################################\n")
 
 
-def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_RBs, tot_num_vehicles,
+def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
                                 avg_speed_meter_per_sec=40000 / 3600, timestamp=1, timestamp_stride=100):
@@ -137,7 +150,6 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
                                       "state_" + str(cv2x_percentage)
                                       + "_" + str(fov)
                                       + "_" + str(view_range)
-                                      + "_" + str(num_RBs)
                                       + "_" + str(tot_num_vehicles)
                                       + "_" + str(time_threshold)
                                       + "_" + str(perception_probability)
@@ -184,7 +196,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
 
         # print(maps[i])
         simulation_thread = RunSimulationProcess(maps[start:end], cv2x_percentage=cv2x_percentage, fov=fov,
-                                                 view_range=view_range, num_RBs=num_RBs,
+                                                 view_range=view_range,
                                                  tot_num_vehicles=tot_num_vehicles, id=i, time_threshold=time_threshold,
                                                  perception_probability=perception_probability,
                                                  estimate_detection_error=estimate_detection_error,
@@ -256,26 +268,21 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, num_
     os.system(cmd)
 
 
-class SIMULATION_TYPE(Enum):
-    FIRST_PAPER=0,
-    SECOND_PAPER=1,
-    THIRD_PAPER=2,
-
 
 if __name__ == '__main__':
-    sim_type = SIMULATION_TYPE.THIRD_PAPER
+    ####################################  Normal Density  #######################################
+    min_num_vehicles = 100
     base_dir = "/home/bassel/toronto_AVpercentage_RBs"
     avg_speed_sec = 10
-    min_num_vehicles = 100
-    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_more_buses"
-    # avg_speed_sec = 10
-    min_num_vehicles = 100
+    ####################################  High Density  #########################################
+    min_num_vehicles = 400
     base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
     avg_speed_sec = 10
-    min_num_vehicles = 400
+    #############################################################################################
 
     # delete_all_results = True
     delete_all_results = False
+
     # delete all results
     if delete_all_results:
         answer = input("Are you sure to delete ALL the results.txt and maps.png??")
@@ -304,71 +311,22 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    if sim_type == SIMULATION_TYPE.THIRD_PAPER:
-        run_simulation(base_dir=base_dir,
-                       cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=min_num_vehicles,
-                       perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
-                       repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
-                       avg_speed_sec=avg_speed_sec)
-        print("*******************************************************************************************")
-    elif sim_type == SIMULATION_TYPE.SECOND_PAPER:
+    run_simulation(base_dir=base_dir,
+                   cv2x_percentage=0.65, fov=120, view_range=75, tot_num_vehicles=min_num_vehicles,
+                   perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
+                   repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
+                   avg_speed_sec=avg_speed_sec)
+    print("*******************************************************************************************")
+    end_time = time.time()
 
-        ################################################   GPS   #######################################################
-        # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
-        # for noise in [0, 0.1, 0.5, 2, 5]:
-        #     print(f"Simulation noise: {noise}")
-        #     run_simulation(base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                    tot_num_vehicles=100, perception_probability=1,
-        #                    estimate_detection_error=False, use_saved_seed=True, noise_distance=noise, repeat=False,
-        #                    continous_probability=False)
+    ###########################################   Test Scenario   #############################################
+    # s = time.time()
+    # run_simulation_one_scenario(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=90, tot_num_vehicles=100,
+    #                             scenario_num=0, repeat=True)
+    # e = time.time()
+    # print(f"Done #1 cv2x_percentage=0.25, fov=120, view_range=75, num_RBs=75, tot_num_vehicles=100, total_time={e-s}")
+    ###########################################################################################################
 
-        #########################################   Error Detection   ##################################################
-        # base_dir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto'
-        # for perc_porb in [0.9, 0.85]:
-        #     for ede in [False, True]:
-        #         print(f"Simulation perception probability: {perc_porb} and estimate detection error {ede}")
-        #         run_simulation(base_dir=base_dir, cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100, tot_num_vehicles=100,
-        #                        perception_probability=perc_porb, estimate_detection_error=ede, use_saved_seed=True)
-
-        # #############################################    FOV     #####################################################
-        for fov in [60, 90, 120, 240, 360]:
-            for prob in [False]:
-                s = time.time()
-                print(f"Simulation fov: {fov}")
-                # run_simulation(base_dir="/media/bassel/E256341D5633F0C1/toronto_fov/toronto",
-                run_simulation(base_dir="/home/bassel/toronto_fov/toronto",
-                               cv2x_percentage=0.65, fov=fov, view_range=75, num_RBs=100, tot_num_vehicles=100,
-                               perception_probability=1, estimate_detection_error=False, use_saved_seed=True,
-                               save_gnss=False, noise_distance=0, cont_prob=prob)
-
-                e = time.time()
-
-                print(f"Scenario toronto_0-9 took {e - s} seconds")
-                print("")
-
-        # ######################################   Test    ###############################################################
-        # p = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test"
-        # simulation_thread = RunSimulationProcess([p], cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=100,
-        #                tot_num_vehicles=100, id=0, time_threshold=10, perception_probability=1, estimate_detection_error=False,
-        #                                          use_saved_seed=True, save_gnss=True, noise_distance=0)
-        # simulation_thread.run()
-    elif sim_type == SIMULATION_TYPE.FIRST_PAPER:
-        ###################################################################################################################
-        for cv2_percentage in [0.25, 0.35, 0.45, 0.55, 0.65]:
-            for num_RBs in [20, 30, 40, 50, 60, 70, 80, 90, 100]:
-                print("cv2_percentage:", cv2_percentage)
-                print("RB:", num_RBs)
-                print("")
-                run_simulation(base_dir=base_dir, cv2x_percentage=cv2_percentage, fov=120, view_range=75,
-                               num_RBs=num_RBs, tot_num_vehicles=min_num_vehicles,
-                               avg_speed_sec=avg_speed_sec, repeat=False)
-        ###################################################################################################################
-        # s = time.time()
-        # run_simulation_one_scenario(cv2x_percentage=0.65, fov=120, view_range=75, num_RBs=90, tot_num_vehicles=100,
-        #                             scenario_num=0, repeat=True)
-        # e = time.time()
-        # print(f"Done #1 cv2x_percentage=0.25, fov=120, view_range=75, num_RBs=75, tot_num_vehicles=100, total_time={e-s}")
-
-    print("time taken:",time.time()-start_time)
+    print("time taken:",end_time-start_time)
 
     print("All Simulations are done! Happy Integrating 9: )")
