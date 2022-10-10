@@ -1,3 +1,4 @@
+import json
 import os, sys
 import pickle
 import random
@@ -317,7 +318,7 @@ class Simulation:
         traci.start(sumoCmd)
         step = 0
         timestamps_recorded = 0
-        time_stamps_stride = 0
+        time_stamps_stride = 1
 
         if self.hyper_params["save_visual"]:
             viz = SumoVisualizer(self.hyper_params)
@@ -377,9 +378,24 @@ class Simulation:
                     vehicles[vid] = Vehicle(vehicle_id=vid, view_range=self.hyper_params["view_range"],
                                             fov=self.hyper_params["fov"])
 
+                    if random.random() <= self.hyper_params["cv2x_N"]:
+                        cv2x_vehicles[vid] = vehicles[vid]
+                        cv2x_vehicles[vid].set_gps_error(self.hyper_params["noise_distance"])
+                    else:
+                        non_cv2x_vehicles[vid] = vehicles[vid]
+
             need_to_remove = set(vehicles.keys()) - set(vehicle_ids)
 
             for vid in need_to_remove:
+                assert vid in cv2x_vehicles.keys() or vid in non_cv2x_vehicles.keys()
+
+                if  vid in cv2x_vehicles.keys():
+                    cv2x_vehicles.pop(vid)
+                    cv2x_perceived_non_cv2x_vehicles.pop(vid)
+                    cv2x_vehicles_perception_visible.pop(vid)
+                else:
+                    non_cv2x_vehicles.pop(vid)
+
                 vehicles.pop(vid)
 
             if  timestamps_recorded != 0 and time_stamps_stride % self.hyper_params["timestamps_stride"] != 0:
@@ -395,13 +411,16 @@ class Simulation:
             if self.hyper_params["save_visual"]:
                 viz.draw_vehicles(vehicles.values())
 
-            cv2x_len = int(self.hyper_params["cv2x_N"] * len(vehicle_ids))
-            cv2x_vehicles_indexes = random.sample(range(len(vehicle_ids)), cv2x_len)
-            non_cv2x_vehicles_indexes = list(set(range(len(vehicle_ids))) - set(cv2x_vehicles_indexes))
-            # Transform indexes into IDs and vehicles
-            cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in cv2x_vehicles_indexes}
-            [av.set_gps_error(self.hyper_params["noise_distance"]) for avid, av in cv2x_vehicles.items()]
-            non_cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in non_cv2x_vehicles_indexes}
+            if timestamps_recorded == 1: # first time
+                cv2x_len = int(self.hyper_params["cv2x_N"] * len(vehicle_ids))
+                cv2x_vehicles_indexes = random.sample(range(len(vehicle_ids)), cv2x_len)
+                non_cv2x_vehicles_indexes = list(set(range(len(vehicle_ids))) - set(cv2x_vehicles_indexes))
+
+                # Transform indexes into IDs and vehicles
+                cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in cv2x_vehicles_indexes}
+                [av.set_gps_error(self.hyper_params["noise_distance"]) for avid, av in cv2x_vehicles.items()]
+                non_cv2x_vehicles = {vehicle_ids[index]:vehicles[vehicle_ids[index]] for index in non_cv2x_vehicles_indexes}
+
             # print(cv2x_vehicles_indexes)
             show_id = None
 
@@ -450,7 +469,6 @@ class Simulation:
                                          "map_" + str(self.hyper_params['cv2x_N'])
                                          + "_" + str(self.hyper_params['fov'])
                                          + "_" + str(self.hyper_params["view_range"])
-                                         + "_" + str(self.hyper_params["num_RBs"])
                                          + "_" + str(self.hyper_params["tot_num_vehicles"])
                                          + "_" + str(self.hyper_params['time_threshold'])
                                          + "_" + str(self.hyper_params['perception_probability'])
@@ -466,7 +484,6 @@ class Simulation:
                                          "map_" + str(self.hyper_params['cv2x_N'])
                                          + "_" + str(self.hyper_params['fov'])
                                          + "_" + str(self.hyper_params["view_range"])
-                                         + "_" + str(self.hyper_params["num_RBs"])
                                          + "_" + str(self.hyper_params["tot_num_vehicles"])
                                          + "_" + str(self.hyper_params['time_threshold'])
                                          + "_" + str(self.hyper_params['perception_probability'])
@@ -490,11 +507,10 @@ class Simulation:
                 os.makedirs(os.path.join(path, "saved_state"))
 
             if self.hyper_params["timestamps"] == 1:
-                save_state = os.path.join(path, "saved_state",
+                json_filename = os.path.join(path, "saved_state",
                              "state_" + str(self.hyper_params['cv2x_N'])
                              + "_" + str(self.hyper_params['fov'])
                              + "_" + str(self.hyper_params["view_range"])
-                             + "_" + str(self.hyper_params["num_RBs"])
                              + "_" + str(self.hyper_params["tot_num_vehicles"])
                              + "_" + str(self.hyper_params['time_threshold'])
                              + "_" + str(self.hyper_params['perception_probability'])
@@ -503,12 +519,15 @@ class Simulation:
                              + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
                              + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
                              + ".pkl")
+                with open(json_filename, 'wb') as fw:
+                    pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,
+                                 scores_per_cv2x, los_statuses, vehicles, cv2x_vehicles_perception_visible,
+                                 tot_perceived_objects, tot_visible_objects), fw)
             else:
-                save_state = os.path.join(path, "saved_state",
+                json_filename = os.path.join(path, "saved_state",
                                           "state_" + str(self.hyper_params['cv2x_N'])
                                           + "_" + str(self.hyper_params['fov'])
                                           + "_" + str(self.hyper_params["view_range"])
-                                          + "_" + str(self.hyper_params["num_RBs"])
                                           + "_" + str(self.hyper_params["tot_num_vehicles"])
                                           + "_" + str(self.hyper_params['time_threshold'])
                                           + "_" + str(self.hyper_params['perception_probability'])
@@ -518,12 +537,16 @@ class Simulation:
                                           + ("_cont_prob" if self.hyper_params[
                                               "continous_probability"] else "_discont_prob")
                                           +f"_{timestamps_recorded}"
-                                          + ".pkl")
+                                          + ".json")
+                data = {"perception": {avid:lst_navids for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
+                        "visibility": {avid:lst_navids for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
+                        "avs" : [av.toJSON() for av in cv2x_vehicles],
+                        "navs" : [nav.toJSON() for nav in non_cv2x_vehicles],
+                        "av_scores": {avid: lst_scores for avid, lst_scores in scores_per_cv2x}
+                        }
 
-            with open(save_state, 'wb') as fw:
-                pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,
-                             scores_per_cv2x, los_statuses, vehicles,  cv2x_perceived_non_cv2x_vehicles,
-                             cv2x_vehicles_perception_visible, tot_perceived_objects, tot_visible_objects), fw)
+                with open(json_filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=4)
 
             if timestamps_recorded == self.hyper_params["timestamps"]:
                 break
@@ -539,12 +562,8 @@ class Simulation:
 
 if __name__ == '__main__':
     hyper_params = {}
-    # hyper_params['scenario_path'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/test.net.xml"
-    # hyper_params['scenario_map'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/net.sumo.cfg"
-    # hyper_params['scenario_polys'] = "/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_test/map.poly.xml"
-    basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_2/5/'
-    basedir = '/home/bassel/toronto_AVpercentage_RBs/toronto_7/1/'
     basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_0/0/'
+    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_0/0/'
 
     # basedir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_1/1/'
     # basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_1/0/'
@@ -554,10 +573,9 @@ if __name__ == '__main__':
     hyper_params["cv2x_N"] = 0.65
     hyper_params["fov"] = 120
     hyper_params["view_range"] = 75
-    # hyper_params["base_station_position"] = 1600, 600
-    hyper_params["base_station_position"] = (2034, 1712)
-    hyper_params["num_RBs"] = 100
-    hyper_params['message_size'] = 2000*8
+    # hyper_params["base_station_position"] = (2034, 1712)
+    # hyper_params["num_RBs"] = 100
+    # hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 100
     hyper_params['time_threshold'] = 10
     hyper_params['save_visual'] = True
@@ -568,7 +586,7 @@ if __name__ == '__main__':
     hyper_params['continous_probability'] = False
     hyper_params["avg_speed_meter_per_sec"] = 10
     hyper_params["timestamps"] = 10
-    hyper_params["timestamps_stride"] = 10
+    hyper_params["timestamps_stride"] = 1
 
     # while True:
     sim = Simulation(hyper_params, "1_0")
