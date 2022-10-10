@@ -1,12 +1,9 @@
+import json
 import random
-from typing import Type
-
 import traci
-
-from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
-    in_and_near_edge, get_dist_from_to, move_point, get_new_abs_pos
-
 import numpy as np
+from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
+    in_and_near_edge, get_dist_from_to, get_new_abs_pos
 
 
 class Vehicle:
@@ -97,6 +94,13 @@ class Vehicle:
         self._heading_unit_vec = np.array(heading_unit_vector)
         return np.array(heading_unit_vector)
 
+    def get_current_road(self):
+        return traci.vehicle.getRoadID(self.vehicle_id)
+
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__,
+            sort_keys=True, indent=4)
+
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
         r = traci.simulation.findRoute(first_edge._id, next_edge._id)
@@ -155,9 +159,6 @@ class Vehicle:
     def update_latest_edge_road(self, new_road_id):
         if new_road_id[0] != ":":
             self.__previous_edge_road = new_road_id
-
-    def get_current_road(self):
-        return traci.vehicle.getRoadID(self.vehicle_id)
 
     def vehicle_in_sight(self, obstacle_vehicle, destination_vehicle, gps_error):
         # assert False ## need to find static obstacles to destination
@@ -399,6 +400,7 @@ class Vehicle:
 
         invisibilities = np.array([does_line_intersect_polygon(line, building) for line in lines])
         return np.count_nonzero(invisibilities) >= 3
+
 
 
 if __name__ == '__main__':
