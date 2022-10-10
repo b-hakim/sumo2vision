@@ -26,67 +26,67 @@ class myThread (threading.Thread):
                                       "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
 
 
-# path = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto'
-# path = '/media/bassel/Career/toronto_content_selection/toronto'
-path = '/home/bassel/toronto_AVpercentage_RBs'
-# path = '/media/bassel/Career/toronto_content_selection/toronto_more_busses'
-maps = './data'
+if __name__ == '__main__':
+    # path = '/media/bassel/Career/toronto_content_selection/toronto'
+    path = '/home/bassel/toronto_AVpercentage_RBs'
+    path = '/media/bassel/Career/toronto_broadcasting/'
+    maps = './data'
 
-if os.path.exists(path):
-    shutil.rmtree(path, True)
+    if os.path.exists(path):
+        shutil.rmtree(path, True)
 
-os.makedirs(path)
+    os.makedirs(path)
 
-file_names = os.listdir(maps)
-map_file_names = [name for name in file_names if name.find(".osm") != -1]
-base_pos_file_names = [name for name in file_names if name.find(".txt") != -1]
-map_file_names.sort()
+    file_names = os.listdir(maps)
+    map_file_names = [name for name in file_names if name.find(".osm") != -1]
+    base_pos_file_names = [name for name in file_names if name.find(".txt") != -1]
+    map_file_names.sort()
 
-base_name='toronto_'
+    base_name='toronto_'
 
-for i in range(len(map_file_names)):
-    os.makedirs(path+"/"+base_name+str(i))
+    for i in range(len(map_file_names)):
+        os.makedirs(path+"/"+base_name+str(i))
 
-    for sub_folder in range(100):
-        dirname = path+"/"+base_name+str(i) + "/" + str(sub_folder)+ "/"
-        os.makedirs(dirname)
+        for sub_folder in range(100):
+            dirname = path+"/"+base_name+str(i) + "/" + str(sub_folder)+ "/"
+            os.makedirs(dirname)
 
-for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_names)):
-    for sub_folder in range(100):
-        dirname = path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
+    for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_names)):
+        for sub_folder in range(100):
+            dirname = path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
 
-        shutil.copy(maps + "/" + map_name, dirname + "/map.osm")
-        shutil.copy(maps + "/" + base_pos_name, dirname + "/basestation_pos.txt")
+            shutil.copy(maps + "/" + map_name, dirname + "/map.osm")
+            shutil.copy(maps + "/" + base_pos_name, dirname + "/basestation_pos.txt")
 
-src_files = [os.path.dirname(__file__) + '/sumo_files/net.sumo.cfg',
-            os.path.dirname(__file__) + '/sumo_files/net2geojson.py',
-            os.path.dirname(__file__) + '/sumo_files/osmNetconvert.typ.xml',
-            os.path.dirname(__file__) + '/sumo_files/randomTrips.py',
-            os.path.dirname(__file__) + '/sumo_files/typemap.xml',
-            os.path.dirname(__file__) + '/sumo_files/typedistrib1.xml']
+    src_files = [os.path.dirname(__file__) + '/sumo_files/net.sumo.cfg',
+                os.path.dirname(__file__) + '/sumo_files/net2geojson.py',
+                os.path.dirname(__file__) + '/sumo_files/osmNetconvert.typ.xml',
+                os.path.dirname(__file__) + '/sumo_files/randomTrips.py',
+                os.path.dirname(__file__) + '/sumo_files/typemap.xml',
+                os.path.dirname(__file__) + '/sumo_files/typedistrib1.xml']
 
-n_threads = 12
-n = n_threads if n_threads<len(map_file_names) else len(map_file_names)
-block_Size = len(map_file_names)//n
-list_threads = []
+    n_threads = 12
+    n = n_threads if n_threads<len(map_file_names) else len(map_file_names)
+    block_Size = len(map_file_names)//n
+    list_threads = []
 
-for i in range(n):
-    start = i * block_Size
-    end = start + block_Size
+    for i in range(n):
+        start = i * block_Size
+        end = start + block_Size
 
-    if i == n-1:
-        end = len(map_file_names)
+        if i == n-1:
+            end = len(map_file_names)
 
-    print("thread " + str(i) + " launched")
+        print("thread " + str(i) + " launched")
 
-    dirnames = [path + "/" + base_name + str(i) for i in range(start, end)]
+        dirnames = [path + "/" + base_name + str(i) for i in range(start, end)]
 
-    initialize_maps_thread = myThread(src_files, dirnames)
-    initialize_maps_thread.start()
-    list_threads.append(initialize_maps_thread)
+        initialize_maps_thread = myThread(src_files, dirnames)
+        initialize_maps_thread.start()
+        list_threads.append(initialize_maps_thread)
 
-for i in range(n):
-    list_threads[i].join()
+    for i in range(n):
+        list_threads[i].join()
 
-print("File Preparation Done! Happy Simulations : )")
+    print("File Preparation Done! Happy Simulations : )")
 
