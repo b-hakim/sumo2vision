@@ -272,14 +272,13 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
 if __name__ == '__main__':
     ####################################  Normal Density  #######################################
     min_num_vehicles = 100
-    base_dir = "/home/bassel/toronto_AVpercentage_RBs"
+    base_dir = "/media/bassel/Career/toronto_broadcasting/"
     avg_speed_sec = 10
     ####################################  High Density  #########################################
-    min_num_vehicles = 400
-    base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
-    avg_speed_sec = 10
+    # min_num_vehicles = 400
+    # base_dir = "/media/bassel/Career/toronto_content_selection/toronto_dense"
+    # avg_speed_sec = 10
     #############################################################################################
-
     # delete_all_results = True
     delete_all_results = False
 
@@ -312,10 +311,10 @@ if __name__ == '__main__':
     start_time = time.time()
 
     run_simulation(base_dir=base_dir,
-                   cv2x_percentage=0.65, fov=120, view_range=75, tot_num_vehicles=min_num_vehicles,
+                   cv2x_percentage=0.65, fov=360, view_range=75, tot_num_vehicles=min_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
                    repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
-                   avg_speed_sec=avg_speed_sec)
+                   avg_speed_sec=avg_speed_sec, timestamp=10, timestamp_stride=1)
     print("*******************************************************************************************")
     end_time = time.time()
 
