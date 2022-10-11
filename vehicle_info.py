@@ -27,12 +27,20 @@ class Vehicle:
     def set_gps_error(self, noise_distance):
         if noise_distance == 0:
             return
+
         angle = np.random.randint(0, 360)
 
         self.gps_pos_error = [np.sin(np.deg2rad(angle)) * noise_distance,
                               np.cos(np.deg2rad(angle)) * noise_distance]
 
     def get_pos(self, with_gps_error=True):
+        if self._pos is not None:
+            if self.gps_pos_error is not None and with_gps_error:
+                return [self._pos[0] + self.gps_pos_error[0],
+                        self._pos[1] + self.gps_pos_error[1]]
+            else:
+                return self._pos
+
         pos = list(traci.vehicle.getPosition(self.vehicle_id))
         self._pos = pos
 
@@ -44,6 +52,9 @@ class Vehicle:
 
     @property
     def center_pos(self):
+        if self._center is not None:
+            return self._center
+
         def rotate_vector(vec, ceta_degree, pivot):
             vec -= pivot.reshape((2, 1))
             ceta_rad = np.deg2rad(ceta_degree)
@@ -64,18 +75,27 @@ class Vehicle:
 
     @property
     def speed(self):
+        if self._speed is not None:
+            return self._speed
+
         speed = traci.vehicle.getSpeed(self.vehicle_id)
         self._speed = speed
         return speed
 
     @property
     def acceleration(self):
+        if self._acc is not None:
+            return self._acc
+
         acc =  traci.vehicle.getAcceleration(self.vehicle_id)
         self._acc = acc
         return acc
 
     @property
     def orientation_angle_degree(self):
+        if self._orientation_ang_degree is not None:
+            return self._orientation_ang_degree
+
         vehicle_angle_degree = traci.vehicle.getAngle(self.vehicle_id)
         # - angle for making it ccw
         # +90 for the desired angle is based on the x axis while traci has angle based on y axis
@@ -88,6 +108,9 @@ class Vehicle:
 
     @property
     def heading_unit_vector(self):
+        if self._heading_unit_vec is not None:
+            return self._heading_unit_vec
+
         heading_unit_vector = [np.cos(self.orientation_angle_degree * np.pi / 180),
                                np.sin(self.orientation_angle_degree * np.pi / 180)]
         # heading_unit_vector = heading_unit_vector / np.sqrt(np.dot(heading_unit_vector, heading_unit_vector))
@@ -98,8 +121,9 @@ class Vehicle:
         return traci.vehicle.getRoadID(self.vehicle_id)
 
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
+        return {"vehicle_id":self.vehicle_id, "viewing_range": self.viewing_range, "fov": self.fov,
+                "pos":self.get_pos(), "center":self.center_pos.tolist(), "speed":self.speed, "acc": self.acceleration,
+                "orientation": self.orientation_angle_degree, "heading_unit_vec":self.heading_unit_vector.tolist()}
 
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
@@ -258,6 +282,9 @@ class Vehicle:
             return False
 
         # Second check that the vehicle is in the given FoV
+        if self.fov == 360:
+            return True
+
         angles = [abs(inner_angle_between_two_vectors(self.heading_unit_vector, get_vector(self.get_pos(), c)))
                   for c in building_corners]
 
