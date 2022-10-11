@@ -50,7 +50,8 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        self.scale = 10
+        # self.scale = 10
+        self.scale = 1
         self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 
@@ -83,41 +84,47 @@ class SumoVisualizer:
 
     def draw_vehicle_perception(self, vehicle, color):
         self.draw_vehicle_body(vehicle, color)
-        semi_viewing_fov = vehicle.fov/2
 
-        a1 = (vehicle.orientation_angle_degree - semi_viewing_fov) % 360
-        a2 = (vehicle.orientation_angle_degree + semi_viewing_fov) % 360
-
-        right_limit = np.array([np.cos(a1 * np.pi / 180),
-                               np.sin(a1 * np.pi / 180)])
-        left_limit = np.array([np.cos(a2 * np.pi / 180),
-                               np.sin(a2 * np.pi / 180)])
-
-        right_pt = vehicle.viewing_range * right_limit + np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR))
-        left_pt = vehicle.viewing_range * left_limit + np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR))
-
-        pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR)), self.img.shape, self.scale)
-        right_pt = Utils.sumo2opencv_coord(right_pt, self.img.shape, self.scale)
-        left_pt = Utils.sumo2opencv_coord(left_pt, self.img.shape, self.scale)
-
-        cv2.line(self.img, tuple(pos.astype(int)), tuple(right_pt.astype(int)), (0, 0, 0))
-        cv2.line(self.img, tuple(pos.astype(int)), tuple(left_pt.astype(int)), (0, 0, 0))
-
-        center = (int(pos[0]), int(pos[1]))
-        axes = (vehicle.viewing_range*self.scale, vehicle.viewing_range*self.scale)
-
-        # Make angles CW for ellipse
-        startAngle = 360 - a1
-        endAngle = 360 - a2
-
-        if abs(endAngle - startAngle) > 180:
-            startAngle = (startAngle - 180) % 360
-            endAngle = (endAngle + 180) % 360
-            ang = 180
+        if vehicle.fov == 360:
+            pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR)), self.img.shape, self.scale)
+            center = (int(pos[0]), int(pos[1]))
+            cv2.circle(self.img, center, vehicle.viewing_range*self.scale, (0, 0, 0), 1)
         else:
-            ang = 0
+            semi_viewing_fov = vehicle.fov/2
 
-        cv2.ellipse(self.img, center, axes, ang, startAngle, endAngle, (0,0,0))
+            a1 = (vehicle.orientation_angle_degree - semi_viewing_fov) % 360
+            a2 = (vehicle.orientation_angle_degree + semi_viewing_fov) % 360
+
+            right_limit = np.array([np.cos(a1 * np.pi / 180),
+                                   np.sin(a1 * np.pi / 180)])
+            left_limit = np.array([np.cos(a2 * np.pi / 180),
+                                   np.sin(a2 * np.pi / 180)])
+
+            right_pt = vehicle.viewing_range * right_limit + np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR))
+            left_pt = vehicle.viewing_range * left_limit + np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR))
+
+            pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR)), self.img.shape, self.scale)
+            right_pt = Utils.sumo2opencv_coord(right_pt, self.img.shape, self.scale)
+            left_pt = Utils.sumo2opencv_coord(left_pt, self.img.shape, self.scale)
+
+            cv2.line(self.img, tuple(pos.astype(int)), tuple(right_pt.astype(int)), (0, 0, 0))
+            cv2.line(self.img, tuple(pos.astype(int)), tuple(left_pt.astype(int)), (0, 0, 0))
+
+            center = (int(pos[0]), int(pos[1]))
+            axes = (vehicle.viewing_range*self.scale, vehicle.viewing_range*self.scale)
+
+            # Make angles CW for ellipse
+            startAngle = 360 - a1
+            endAngle = 360 - a2
+
+            if abs(endAngle - startAngle) > 180:
+                startAngle = (startAngle - 180) % 360
+                endAngle = (endAngle + 180) % 360
+                ang = 180
+            else:
+                ang = 0
+
+            cv2.ellipse(self.img, center, axes, ang, startAngle, endAngle, (0,0,0))
 
     def save_img(self, img_path="./map.png"):
         RGBimage = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
