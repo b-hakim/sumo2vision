@@ -47,34 +47,57 @@ class Simulation:
         cv2x_vehicles_perception_visible = {}
 
         for cv2x_vehicle in cv2x_vehicles:
+            local_non_cv2x_vehicles = set()
             for non_cv2x_vehicle in non_cv2x_vehicles:
                 if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, detection_probability=1):
-                    is_occluded = False
+                    local_non_cv2x_vehicles.add(non_cv2x_vehicle)
 
-                    for building in buildings:
-                        if cv2x_vehicle.building_in_sight(building.shape, False, non_cv2x_vehicle):
-                            is_occluded = True
-                            break
+            local_cv2x_vehicles = set()
+            for local_cv2x_vehicle in cv2x_vehicles:
+                if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, detection_probability=1):
+                    local_cv2x_vehicles.add(local_cv2x_vehicle)
 
-                    if not is_occluded:
-                        for obstacle_vehicle in non_cv2x_vehicles+cv2x_vehicles:
-                            if obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
-                                    obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
-                                if cv2x_vehicle.vehicle_in_sight(obstacle_vehicle, non_cv2x_vehicle, False):
-                                    is_occluded = True
-                                    break
+            buildings_in_sight = set()
+            for building in buildings:
+                if cv2x_vehicle.can_see_building(building):
+                    buildings_in_sight.add(building)
 
-                    if not is_occluded:
-                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, self.hyper_params["perception_probability"]):
+            local_perceived_vehilces = local_non_cv2x_vehicles.union(local_cv2x_vehicles)
+
+            for non_cv2x_vehicle in local_non_cv2x_vehicles:
+                is_occluded = False
+
+                for building in buildings_in_sight:
+                     if cv2x_vehicle.building_in_sight(building.shape, False, non_cv2x_vehicle):
+                        is_occluded = True
+                        break
+
+                if not is_occluded:
+                    for obstacle_vehicle in local_perceived_vehilces:
+                        if obstacle_vehicle.vehicle_id != non_cv2x_vehicle.vehicle_id and \
+                                obstacle_vehicle.vehicle_id != cv2x_vehicle.vehicle_id:
+                            if cv2x_vehicle.vehicle_in_sight(obstacle_vehicle, non_cv2x_vehicle, False):
+                                is_occluded = True
+                                break
+
+                if not is_occluded:
+                    if self.hyper_params["perception_probability"] != 1: # optimization a bit
+                        if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False,
+                                                                self.hyper_params["perception_probability"]):
                             if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
-                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
+                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].add(non_cv2x_vehicle.vehicle_id)
                             else:
-                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
-
-                        if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception_visible:
-                            cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id].append(non_cv2x_vehicle.vehicle_id)
+                                cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = set([non_cv2x_vehicle.vehicle_id])
+                    else:
+                        if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception:
+                            cv2x_vehicles_perception[cv2x_vehicle.vehicle_id].add(non_cv2x_vehicle.vehicle_id)
                         else:
-                            cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = [non_cv2x_vehicle.vehicle_id]
+                            cv2x_vehicles_perception[cv2x_vehicle.vehicle_id] = set([non_cv2x_vehicle.vehicle_id])
+
+                    if cv2x_vehicle.vehicle_id in cv2x_vehicles_perception_visible:
+                        cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id].add(non_cv2x_vehicle.vehicle_id)
+                    else:
+                        cv2x_vehicles_perception_visible[cv2x_vehicle.vehicle_id] = set([non_cv2x_vehicle.vehicle_id])
 
             # Code for perceived cv2x using communication sensors
             # Decision: Do not add AV to the perceived set to differentiate between AV and NAV,
@@ -325,7 +348,7 @@ class Simulation:
 
         repeat_path = os.path.join(os.path.dirname(self.hyper_params['scenario_path']), "repeat.txt")
         ########################################## Load Rand State ################################################
-        if use_seed:
+        if use_seed and os.path.isfile(repeat_path):
             with open(repeat_path) as fr:
                 np_rand_state = (fr.readline().strip(),np.array(literal_eval(fr.readline().strip())), int(fr.readline().strip()),
                                  int(fr.readline().strip()), float(fr.readline().strip()))
@@ -362,41 +385,49 @@ class Simulation:
             traci.simulationStep()
             traci.route.getIDList()
 
+            if timestamps_recorded != 0 and self.hyper_params["save_visual"]:
+                viz = SumoVisualizer(self.hyper_params)
+
             # 1) Get All Vehicles with Wireless
             vehicle_ids = traci.vehicle.getIDList()
+            prev_vehicles_ids = set(vehicles.keys())
+
+            tracking_vehicles_time_start = time.time()
 
             for vid in vehicle_ids:
-                v_found = False
-
-                for vehicle_id, vehicle in vehicles.items():
-                    if vehicle_id == vid:
-                        v_road_id = traci.vehicle.getRoadID(vid)
-                        vehicle.update_latest_edge_road(v_road_id)
-                        v_found = True
-
-                if not v_found:
+                if vid in prev_vehicles_ids:
+                    v_road_id = traci.vehicle.getRoadID(vid)
+                    vehicles[vid].update_latest_edge_road(v_road_id)
+                else:
                     vehicles[vid] = Vehicle(vehicle_id=vid, view_range=self.hyper_params["view_range"],
                                             fov=self.hyper_params["fov"])
 
-                    if random.random() <= self.hyper_params["cv2x_N"]:
-                        cv2x_vehicles[vid] = vehicles[vid]
-                        cv2x_vehicles[vid].set_gps_error(self.hyper_params["noise_distance"])
-                    else:
-                        non_cv2x_vehicles[vid] = vehicles[vid]
+                    if timestamps_recorded != 0:
+                        if random.random() <= self.hyper_params["cv2x_N"]:
+                            cv2x_vehicles[vid] = vehicles[vid]
+                            cv2x_vehicles[vid].set_gps_error(self.hyper_params["noise_distance"])
+                        else:
+                            non_cv2x_vehicles[vid] = vehicles[vid]
 
             need_to_remove = set(vehicles.keys()) - set(vehicle_ids)
 
             for vid in need_to_remove:
                 assert vid in cv2x_vehicles.keys() or vid in non_cv2x_vehicles.keys()
-
-                if  vid in cv2x_vehicles.keys():
-                    cv2x_vehicles.pop(vid)
-                    cv2x_perceived_non_cv2x_vehicles.pop(vid)
-                    cv2x_vehicles_perception_visible.pop(vid)
-                else:
-                    non_cv2x_vehicles.pop(vid)
+                if timestamps_recorded != 0:
+                    if vid in cv2x_vehicles.keys():
+                        cv2x_vehicles.pop(vid)
+                        if vid in cv2x_perceived_non_cv2x_vehicles:
+                            cv2x_perceived_non_cv2x_vehicles.pop(vid)
+                        if vid in cv2x_vehicles_perception_visible:
+                            cv2x_vehicles_perception_visible.pop(vid)
+                    else:
+                        non_cv2x_vehicles.pop(vid)
 
                 vehicles.pop(vid)
+
+            tracking_vehicles_time_end = time.time()
+
+            print(f"Tracking Vehicles took {tracking_vehicles_time_end - tracking_vehicles_time_start} seconds")
 
             if  timestamps_recorded != 0 and time_stamps_stride % self.hyper_params["timestamps_stride"] != 0:
                 time_stamps_stride += 1
@@ -407,6 +438,22 @@ class Simulation:
 
             timestamps_recorded += 1
             time_stamps_stride = 1
+
+            # Refresh Vehicles Values
+            for v in vehicles.values():
+                v._pos = None
+                v.get_pos()
+                v._center = None
+                v.center_pos
+                v._speed = None
+                v.speed
+                v._acc=None
+                v.acceleration
+                v._orientation_ang_degree = None
+                v.orientation_angle_degree
+                v._heading_unit_vec = None
+                v.heading_unit_vector
+
 
             if self.hyper_params["save_visual"]:
                 viz.draw_vehicles(vehicles.values())
@@ -435,8 +482,13 @@ class Simulation:
 
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
+            seen_time_start = time.time()
             cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
                                                                       list(non_cv2x_vehicles.values()), buildings)
+            seen_time_end = time.time()
+            print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
+                  f"took {seen_time_end - seen_time_start} seconds")
+
             tot_perceived_objects = 0
             tot_visible_objects = 0
 
@@ -496,18 +548,27 @@ class Simulation:
                                          + ".png")
 
             if self.hyper_params["save_visual"]:
+                if not os.path.isdir(os.path.dirname(save_path)):
+                    os.makedirs(os.path.dirname(save_path))
+
                 viz.save_img(save_path)
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
-            scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles, non_cv2x_vehicles,
-                                                             buildings, self.hyper_params['time_threshold'])
+            score_time_start = time.time()
+            scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
+                                                                           cv2x_vehicles, non_cv2x_vehicles, buildings,
+                                                                           self.hyper_params['time_threshold'])
+            score_time_end = time.time()
+            print(f"Scores Calculations done took {score_time_end - score_time_start} seconds")
+            # traci.close()
+            # return
 
             if not os.path.isdir(os.path.join(path, "saved_state")):
                 os.makedirs(os.path.join(path, "saved_state"))
 
             if self.hyper_params["timestamps"] == 1:
-                json_filename = os.path.join(path, "saved_state",
+                state_filename = os.path.join(path, "saved_state",
                              "state_" + str(self.hyper_params['cv2x_N'])
                              + "_" + str(self.hyper_params['fov'])
                              + "_" + str(self.hyper_params["view_range"])
@@ -519,10 +580,11 @@ class Simulation:
                              + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
                              + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
                              + ".pkl")
-                with open(json_filename, 'wb') as fw:
+                with open(state_filename, 'wb') as fw:
                     pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,
                                  scores_per_cv2x, los_statuses, vehicles, cv2x_vehicles_perception_visible,
                                  tot_perceived_objects, tot_visible_objects), fw)
+                print(f"{state_filename} saved")
             else:
                 json_filename = os.path.join(path, "saved_state",
                                           "state_" + str(self.hyper_params['cv2x_N'])
@@ -538,15 +600,18 @@ class Simulation:
                                               "continous_probability"] else "_discont_prob")
                                           +f"_{timestamps_recorded}"
                                           + ".json")
-                data = {"perception": {avid:lst_navids for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
-                        "visibility": {avid:lst_navids for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
-                        "avs" : [av.toJSON() for av in cv2x_vehicles],
-                        "navs" : [nav.toJSON() for nav in non_cv2x_vehicles],
-                        "av_scores": {avid: lst_scores for avid, lst_scores in scores_per_cv2x}
+                data = {"perception": {avid:list(lst_navids) for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
+                        "visibility": {avid:list(lst_navids) for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
+                        "avs" : [vehicles[av].toJSON() for av in cv2x_vehicles],
+                        "navs" : [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
+                        "av_scores": {avid:[[score[0], score[1], score[2].vehicle_id, score[3]]
+                                             for score in lst_scores] for avid, lst_scores in scores_per_cv2x.items()}
                         }
 
                 with open(json_filename, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False, indent=4)
+
+                print(f"{json_filename} saved")
 
             if timestamps_recorded == self.hyper_params["timestamps"]:
                 break
@@ -562,20 +627,15 @@ class Simulation:
 
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_0/0/'
     basedir = '/media/bassel/Career/toronto_broadcasting/toronto_0/0/'
 
-    # basedir = '/media/bassel/Entertainment/sumo_traffic/sumo_map/toronto_gps/toronto/toronto_1/1/'
-    # basedir = '/media/bassel/Career/toronto_content_selection/toronto_dense/toronto_1/0/'
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
     hyper_params['scenario_map'] =  os.path.join(basedir, "net.sumo.cfg")
     hyper_params['scenario_polys'] = os.path.join(basedir, "map.poly.xml")
-    hyper_params["cv2x_N"] = 0.65
-    hyper_params["fov"] = 120
+
+    hyper_params["cv2x_N"] = 0.25
+    hyper_params["fov"] = 360
     hyper_params["view_range"] = 75
-    # hyper_params["base_station_position"] = (2034, 1712)
-    # hyper_params["num_RBs"] = 100
-    # hyper_params['message_size'] = 2000*8
     hyper_params['tot_num_vehicles'] = 100
     hyper_params['time_threshold'] = 10
     hyper_params['save_visual'] = True
@@ -585,8 +645,9 @@ if __name__ == '__main__':
     hyper_params['save_gnss'] = False
     hyper_params['continous_probability'] = False
     hyper_params["avg_speed_meter_per_sec"] = 10
-    hyper_params["timestamps"] = 10
-    hyper_params["timestamps_stride"] = 1
+
+    hyper_params["timestamps"] = 20 # int(10*60*3/100) # 3 min
+    hyper_params["timestamps_stride"] = 100
 
     # while True:
     sim = Simulation(hyper_params, "1_0")
