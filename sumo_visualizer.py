@@ -50,8 +50,8 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        # self.scale = 10
-        self.scale = 1
+        self.scale = 10
+        # self.scale = 1
         self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 
@@ -88,7 +88,7 @@ class SumoVisualizer:
         if vehicle.fov == 360:
             pos = Utils.sumo2opencv_coord(np.array(vehicle.get_pos(DRAW_WITH_GPS_ERROR)), self.img.shape, self.scale)
             center = (int(pos[0]), int(pos[1]))
-            cv2.circle(self.img, center, vehicle.viewing_range*self.scale, (0, 0, 0), 1)
+            cv2.circle(self.img, center, int(vehicle.viewing_range*self.scale), (0, 0, 0), 1)
         else:
             semi_viewing_fov = vehicle.fov/2
 
@@ -127,9 +127,10 @@ class SumoVisualizer:
             cv2.ellipse(self.img, center, axes, ang, startAngle, endAngle, (0,0,0))
 
     def save_img(self, img_path="./map.png"):
+        # self.img = self.img[7250:16300, 6900:13900, :]
         RGBimage = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
         PILimage = Image.fromarray(RGBimage)
-        PILimage.save(img_path, dpi=(2000, 2000))
+        PILimage.save(img_path)#, dpi=(2000, 2000))
 
         # cv2.imwrite(img_path, self.img)
 
