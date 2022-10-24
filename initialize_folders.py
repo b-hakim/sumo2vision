@@ -4,33 +4,49 @@ import threading
 
 
 class myThread (threading.Thread):
-    def __init__(self, src_files, dirnames):
+    def __init__(self, src_files, dirnames, nruns_per_scenario):
         threading.Thread.__init__(self)
 
         self.src_files = src_files
         self.dirnames = dirnames
+        self.nruns_per_scenario = nruns_per_scenario
 
     def run(self):
         for dirname_ in self.dirnames:
-            for sub_folder in range(100):
+            for sub_folder in range(self.nruns_per_scenario):
                 dirname = dirname_ + "/" + str(sub_folder) + "/"
 
                 for fsrc in self.src_files:
                     shutil.copy(fsrc, dirname + "/" + os.path.basename(fsrc))
 
+                # https://sumo.dlr.de/docs/Tools/Trip.html
                 os.system(
-                    "cd " + dirname + " && pwd && netconvert --osm-files map.osm -o test.net.xml -t osmNetconvert.typ.xml --xml-validation never &&"
-                                      "polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml -o map.poly.xml --xml-validation never &&"
-                                      "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 2 --min-distance 100 "
-                                      "--validate -p 0.01 -b 0 -e 20 "
-                                      "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
-
+                    "cd " + dirname + " && pwd && netconvert --osm-files map.osm -o test.net.xml "
+                                     "-t osmNetconvert.typ.xml --xml-validation never && polyconvert "
+                                     "--net-file test.net.xml --osm-files map.osm --type-file typemap.xml "
+                                     "-o map.poly.xml --xml-validation never && "
+                                     "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml "
+                                     "--fringe-factor 1000 --intermediate 30 --validate -p 0.125 -b 0 -e 55 " # generates ~220 vehicles 
+                                     "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
+                '''
+                Key Params Explanations:
+                    --random        Each run gets different trips
+                    --fringe-factor Increase the weight to initiate vehicles from edges
+                    --intermediate  intermediate stops for each vehicles, which increasing the vehicle time before exit 
+                    --validate      makes sure the number of routes are valid
+                    -b              The time to start the generation of vehicles
+                    -e              The time to end the generation of vehicles (sometimes it generates afterwards)
+                    -p              the period between vehicles. This is also helps defining the number of vehicles 
+                                    where n = (e-b)/2p or p = (e-b)/2n
+                '''
 
 if __name__ == '__main__':
     # path = '/media/bassel/Career/toronto_content_selection/toronto'
-    path = '/home/bassel/toronto_AVpercentage_RBs'
+    # path = '/home/bassel/toronto_AVpercentage_RBs'
     path = '/media/bassel/Career/toronto_broadcasting/'
     maps = './data'
+    nruns_per_scenario = 100
+    nruns_per_scenario = 12
 
     if os.path.exists(path):
         shutil.rmtree(path, True)
@@ -47,12 +63,12 @@ if __name__ == '__main__':
     for i in range(len(map_file_names)):
         os.makedirs(path+"/"+base_name+str(i))
 
-        for sub_folder in range(100):
+        for sub_folder in range(nruns_per_scenario):
             dirname = path+"/"+base_name+str(i) + "/" + str(sub_folder)+ "/"
             os.makedirs(dirname)
 
     for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_names)):
-        for sub_folder in range(100):
+        for sub_folder in range(nruns_per_scenario):
             dirname = path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
 
             shutil.copy(maps + "/" + map_name, dirname + "/map.osm")
@@ -81,7 +97,7 @@ if __name__ == '__main__':
 
         dirnames = [path + "/" + base_name + str(i) for i in range(start, end)]
 
-        initialize_maps_thread = myThread(src_files, dirnames)
+        initialize_maps_thread = myThread(src_files, dirnames, nruns_per_scenario)
         initialize_maps_thread.start()
         list_threads.append(initialize_maps_thread)
 
