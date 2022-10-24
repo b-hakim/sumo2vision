@@ -12,7 +12,7 @@ class RunSimulationProcess(multiprocessing.Process):
     def __init__(self, map, cv2x_percentage, fov, view_range, tot_num_vehicles, id, time_threshold,
                  perception_probability=1.0, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
                  noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000 / 3600, timestamp=1,
-                 timestamp_stride=100):
+                 save_scores = False):
         # multiprocessing.Process.__init__(self)
         super(RunSimulationProcess, self).__init__()
 
@@ -36,7 +36,7 @@ class RunSimulationProcess(multiprocessing.Process):
         self.cont_prob = cont_prob
         self.avg_speed_meter_per_sec = avg_speed_meter_per_sec
         self.timestamp = timestamp
-        self.timestamp_stride = timestamp_stride
+        self.save_scores = save_scores
 
     def run(self):
         print(f"Simulation Thread {str(self.sim_id)} started with a batchsize={len(self.traffics)} ")
@@ -53,46 +53,46 @@ class RunSimulationProcess(multiprocessing.Process):
             hyper_params["view_range"] = self.view_range
             hyper_params['tot_num_vehicles'] = self.tot_num_vehicles
             hyper_params['time_threshold'] = self.time_threshold
-            hyper_params['save_visual'] = True
+            hyper_params['save_visual'] = False
             hyper_params['perception_probability'] = self.perception_probability
             hyper_params["estimate_detection_error"] = self.estimate_detection_error
             hyper_params["save_gnss"] = self.save_gnss
             hyper_params["noise_distance"] = self.noise_distance
             hyper_params["continous_probability"] = self.cont_prob
             hyper_params["avg_speed_meter_per_sec"] = self.avg_speed_meter_per_sec
-            hyper_params["timestamp"] = self.timestamp
-            hyper_params["timestamp_stride"] = self.timestamp_stride
+            hyper_params["timestamps"] = self.timestamp
+            hyper_params["save_scores"] = self.save_scores
 
             with open(os.path.join(traffic,"basestation_pos.txt"), 'r') as fr:
                 hyper_params["base_station_position"] = literal_eval(fr.readline())
 
-            if hyper_params["timestamp"] == 1:
+            if hyper_params["timestamps"] == 1:
                 state_path = os.path.join(traffic, "saved_state",
-                                 "state_" + str(self.hyper_params['cv2x_N'])
-                                 + "_" + str(self.hyper_params['fov'])
-                                 + "_" + str(self.hyper_params["view_range"])
-                                 + "_" + str(self.hyper_params["tot_num_vehicles"])
-                                 + "_" + str(self.hyper_params['time_threshold'])
-                                 + "_" + str(self.hyper_params['perception_probability'])
-                                 + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                                 + "_" + str(self.hyper_params["noise_distance"])
-                                 + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
-                                 + ("_cont_prob" if self.hyper_params["continous_probability"] else "_discont_prob")
+                                 "state_" + str(hyper_params['cv2x_N'])
+                                 + "_" + str(hyper_params['fov'])
+                                 + "_" + str(hyper_params["view_range"])
+                                 + "_" + str(hyper_params["tot_num_vehicles"])
+                                 + "_" + str(hyper_params['time_threshold'])
+                                 + "_" + str(hyper_params['perception_probability'])
+                                 + ("_ede" if hyper_params["estimate_detection_error"] else "_nede")
+                                 + "_" + str(hyper_params["noise_distance"])
+                                 + ("_egps" if hyper_params["noise_distance"] != 0 else "")
+                                 + ("_cont_prob" if hyper_params["continous_probability"] else "_discont_prob")
                                  + ".pkl")
             else:
-                state_path = os.path.join(path, "saved_state",
-                                             "state_" + str(self.hyper_params['cv2x_N'])
-                                             + "_" + str(self.hyper_params['fov'])
-                                             + "_" + str(self.hyper_params["view_range"])
-                                             + "_" + str(self.hyper_params["tot_num_vehicles"])
-                                             + "_" + str(self.hyper_params['time_threshold'])
-                                             + "_" + str(self.hyper_params['perception_probability'])
-                                             + ("_ede" if self.hyper_params["estimate_detection_error"] else "_nede")
-                                             + "_" + str(self.hyper_params["noise_distance"])
-                                             + ("_egps" if self.hyper_params["noise_distance"] != 0 else "")
-                                             + ("_cont_prob" if self.hyper_params[
+                state_path = os.path.join(traffic, "saved_state",
+                                             "state_" + str(hyper_params['cv2x_N'])
+                                             + "_" + str(hyper_params['fov'])
+                                             + "_" + str(hyper_params["view_range"])
+                                             + "_" + str(hyper_params["tot_num_vehicles"])
+                                             + "_" + str(hyper_params['time_threshold'])
+                                             + "_" + str(hyper_params['perception_probability'])
+                                             + ("_ede" if hyper_params["estimate_detection_error"] else "_nede")
+                                             + "_" + str(hyper_params["noise_distance"])
+                                             + ("_egps" if hyper_params["noise_distance"] != 0 else "")
+                                             + ("_cont_prob" if hyper_params[
                                                  "continous_probability"] else "_discont_prob")
-                                             + f"_{hyper_params['timestamp']}'"
+                                             + f"_{hyper_params['timestamps']}'"
                                              + ".json")
 
             if os.path.isfile(state_path) and not self.repeat:
@@ -111,9 +111,8 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1,
-                   timestamp_stride=100):
-    n_scenarios = 10
+                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1):
+    n_scenarios = 3
     s = time.time()
 
     for i in range(n_scenarios):
@@ -121,7 +120,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
                                     use_saved_seed, save_gnss, noise_distance, repeat, cont_prob,
-                                    avg_speed_meter_per_sec, timestamp, timestamp_stride)
+                                    avg_speed_meter_per_sec, timestamp)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -133,8 +132,8 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
-                                avg_speed_meter_per_sec=40000 / 3600, timestamp=1, timestamp_stride=100):
-    time_threshold = 3
+                                avg_speed_meter_per_sec=40000 / 3600, timestamp=1):
+    time_threshold = 10
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
     maps = os.listdir(path)
@@ -145,6 +144,35 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
         filtered_maps = []
         for traffic in maps:
             scenario_path = os.path.join(traffic, "test.net.xml")
+            state_path = ""
+
+            if timestamp == 1:
+                state_path = os.path.join(path, "saved_state",
+                             "state_" + str(cv2x_percentage)
+                             + "_" + str(fov)
+                             + "_" + str(view_range)
+                             + "_" + str(tot_num_vehicles)
+                             + "_" + str(time_threshold)
+                             + "_" + str(perception_probability)
+                             + ("_ede" if estimate_detection_error else "_nede")
+                             + "_" + str(noise_distance)
+                             + ("_egps" if noise_distance != 0 else "")
+                             + ("_cont_prob" if cont_prob else "_discont_prob")
+                             + ".pkl")
+            else:
+                state_path = os.path.join(path, "saved_state",
+                                          "state_" + str(cv2x_percentage)
+                                          + "_" + str(fov)
+                                          + "_" + str(view_range)
+                                          + "_" + str(tot_num_vehicles)
+                                          + "_" + str(time_threshold)
+                                          + "_" + str(perception_probability)
+                                          + ("_ede" if estimate_detection_error else "_nede")
+                                          + "_" + str(noise_distance)
+                                          + ("_egps" if noise_distance != 0 else "")
+                                          + ("_cont_prob" if cont_prob else "_discont_prob")
+                                          +f"_{timestamp}"
+                                          + ".json")
 
             state_path = os.path.join(os.path.dirname(scenario_path), "saved_state",
                                       "state_" + str(cv2x_percentage)
@@ -203,14 +231,15 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
                                                  noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob,
                                                  avg_speed_meter_per_sec= avg_speed_meter_per_sec, timestamp=timestamp,
-                                                 timestamp_stride=timestamp_stride)
+                                                 save_scores=False)
 
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
     max_block_size = (len(maps) - block_size*(len(list_threads)-1)) # length of the last block
     max_block_size = max(block_size, max_block_size)
-    timeout = 5 * 60 * max_block_size
+    timeout = 300 * 60 * max_block_size
+
     if timeout < 60:
         print("timeout was", timeout)
         timeout = 60
@@ -271,7 +300,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
 
 if __name__ == '__main__':
     ####################################  Normal Density  #######################################
-    min_num_vehicles = 100
+    min_num_vehicles = 50
     base_dir = "/media/bassel/Career/toronto_broadcasting/"
     avg_speed_sec = 10
     ####################################  High Density  #########################################
@@ -311,10 +340,10 @@ if __name__ == '__main__':
     start_time = time.time()
 
     run_simulation(base_dir=base_dir,
-                   cv2x_percentage=0.65, fov=360, view_range=75, tot_num_vehicles=min_num_vehicles,
+                   cv2x_percentage=0.65, fov=360, view_range=37.5, tot_num_vehicles=min_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
                    repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
-                   avg_speed_sec=avg_speed_sec, timestamp=10, timestamp_stride=1)
+                   avg_speed_meter_per_sec=avg_speed_sec, timestamp=int(10*60*1))
     print("*******************************************************************************************")
     end_time = time.time()
 
