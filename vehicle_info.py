@@ -122,8 +122,9 @@ class Vehicle:
 
     def toJSON(self):
         return {"vehicle_id":self.vehicle_id, "viewing_range": self.viewing_range, "fov": self.fov,
-                "pos":self.get_pos(), "center":self.center_pos.tolist(), "speed":self.speed, "acc": self.acceleration,
-                "orientation": self.orientation_angle_degree, "heading_unit_vec":self.heading_unit_vector.tolist()}
+                "center":self.center_pos.tolist(), "speed":self.speed, "acc": self.acceleration,
+                "orientation": self.orientation_angle_degree }
+            # "pos":self.get_pos(), "heading_unit_vec":self.heading_unit_vector.tolist()}
 
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
