@@ -337,11 +337,12 @@ class Simulation:
     def run(self, use_seed=True):
         sumoBinary = "/usr/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
-        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end']
+        sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end',
+                   f'--step-length=0.1']
         traci.start(sumoCmd)
         step = 0
         timestamps_recorded = 0
-        time_stamps_stride = 1
+        # time_stamps_stride = 1
 
         if self.hyper_params["save_visual"]:
             viz = SumoVisualizer(self.hyper_params)
@@ -392,7 +393,7 @@ class Simulation:
             vehicle_ids = traci.vehicle.getIDList()
             prev_vehicles_ids = set(vehicles.keys())
 
-            tracking_vehicles_time_start = time.time()
+            # tracking_vehicles_time_start = time.time()
 
             for vid in vehicle_ids:
                 if vid in prev_vehicles_ids:
@@ -412,8 +413,9 @@ class Simulation:
             need_to_remove = set(vehicles.keys()) - set(vehicle_ids)
 
             for vid in need_to_remove:
-                assert vid in cv2x_vehicles.keys() or vid in non_cv2x_vehicles.keys()
                 if timestamps_recorded != 0:
+                    assert vid in cv2x_vehicles.keys() or vid in non_cv2x_vehicles.keys()
+
                     if vid in cv2x_vehicles.keys():
                         cv2x_vehicles.pop(vid)
                         if vid in cv2x_perceived_non_cv2x_vehicles:
@@ -425,19 +427,19 @@ class Simulation:
 
                 vehicles.pop(vid)
 
-            tracking_vehicles_time_end = time.time()
+            # tracking_vehicles_time_end = time.time()
 
-            print(f"Tracking Vehicles took {tracking_vehicles_time_end - tracking_vehicles_time_start} seconds")
+            # print(f"Tracking Vehicles took {tracking_vehicles_time_end - tracking_vehicles_time_start} seconds")
 
-            if  timestamps_recorded != 0 and time_stamps_stride % self.hyper_params["timestamps_stride"] != 0:
-                time_stamps_stride += 1
-                continue
+            # if  timestamps_recorded != 0 and time_stamps_stride % self.hyper_params["timestamps_stride"] != 0:
+            #     time_stamps_stride += 1
+            #     continue
 
             if len(vehicle_ids) < self.hyper_params['tot_num_vehicles'] and timestamps_recorded == 0:
                 continue
 
             timestamps_recorded += 1
-            time_stamps_stride = 1
+            # time_stamps_stride = 1
 
             # Refresh Vehicles Values
             for v in vehicles.values():
@@ -482,12 +484,12 @@ class Simulation:
 
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
-            seen_time_start = time.time()
+            # seen_time_start = time.time()
             cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
                                                                       list(non_cv2x_vehicles.values()), buildings)
-            seen_time_end = time.time()
-            print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
-                  f"took {seen_time_end - seen_time_start} seconds")
+            # seen_time_end = time.time()
+            # print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
+            #       f"took {seen_time_end - seen_time_start} seconds")
 
             tot_perceived_objects = 0
             tot_visible_objects = 0
@@ -555,12 +557,16 @@ class Simulation:
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
-            score_time_start = time.time()
-            scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
-                                                                           cv2x_vehicles, non_cv2x_vehicles, buildings,
-                                                                           self.hyper_params['time_threshold'])
-            score_time_end = time.time()
-            print(f"Scores Calculations done took {score_time_end - score_time_start} seconds")
+            # score_time_start = time.time()
+            if self.hyper_params["save_scores"]:
+                scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
+                                                                               cv2x_vehicles, non_cv2x_vehicles, buildings,
+                                                                               self.hyper_params['time_threshold'])
+            else:
+                scores_per_cv2x, los_statuses = {}, []
+
+            # score_time_end = time.time()
+            # print(f"Scores Calculations done took {score_time_end - score_time_start} seconds")
             # traci.close()
             # return
 
@@ -584,7 +590,7 @@ class Simulation:
                     pickle.dump((cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,
                                  scores_per_cv2x, los_statuses, vehicles, cv2x_vehicles_perception_visible,
                                  tot_perceived_objects, tot_visible_objects), fw)
-                print(f"{state_filename} saved")
+                # print(f"{state_filename} saved")
             else:
                 json_filename = os.path.join(path, "saved_state",
                                           "state_" + str(self.hyper_params['cv2x_N'])
@@ -600,18 +606,29 @@ class Simulation:
                                               "continous_probability"] else "_discont_prob")
                                           +f"_{timestamps_recorded}"
                                           + ".json")
-                data = {"perception": {avid:list(lst_navids) for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
-                        "visibility": {avid:list(lst_navids) for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
-                        "avs" : [vehicles[av].toJSON() for av in cv2x_vehicles],
-                        "navs" : [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
-                        "av_scores": {avid:[[score[0], score[1], score[2].vehicle_id, score[3]]
-                                             for score in lst_scores] for avid, lst_scores in scores_per_cv2x.items()}
-                        }
+                if self.hyper_params["save_scores"]:
+                    data = {
+                        "perception": {avid:list(lst_navids) for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
+                        # "visibility": {avid:list(lst_navids) for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
+                            "avs" : [vehicles[av].toJSON() for av in cv2x_vehicles],
+                            "navs" : [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
+                            "av_scores": {avid:[[score[0], score[1], score[2].vehicle_id, score[3]]
+                                                 for score in lst_scores] for avid, lst_scores in scores_per_cv2x.items()}
+                            }
+                else:
+                    data = {
+                        "perception": { avid: list(lst_navids) for avid, lst_navids in
+                                       cv2x_perceived_non_cv2x_vehicles.items() },
+                        "avs": [vehicles[av].toJSON() for av in cv2x_vehicles],
+                        "navs": [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
+                    }
 
                 with open(json_filename, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False, indent=4)
 
-                print(f"{json_filename} saved")
+                del data
+
+                # print(f"{json_filename} saved")
 
             if timestamps_recorded == self.hyper_params["timestamps"]:
                 break
@@ -624,30 +641,30 @@ class Simulation:
         traci.close()
 
 
-
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_0/0/'
+    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_1/0/'
 
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
     hyper_params['scenario_map'] =  os.path.join(basedir, "net.sumo.cfg")
     hyper_params['scenario_polys'] = os.path.join(basedir, "map.poly.xml")
 
-    hyper_params["cv2x_N"] = 0.25
+    hyper_params["cv2x_N"] = 0.65
     hyper_params["fov"] = 360
-    hyper_params["view_range"] = 75
-    hyper_params['tot_num_vehicles'] = 100
+    hyper_params["view_range"] = 37.5
+    hyper_params['tot_num_vehicles'] = 50
     hyper_params['time_threshold'] = 10
-    hyper_params['save_visual'] = True
     hyper_params['noise_distance'] = 0
     hyper_params['perception_probability'] = 1
     hyper_params['estimate_detection_error'] = False
     hyper_params['save_gnss'] = False
     hyper_params['continous_probability'] = False
     hyper_params["avg_speed_meter_per_sec"] = 10
+    hyper_params['save_visual'] = False
+    hyper_params["save_scores"] = False
 
-    hyper_params["timestamps"] = 20 # int(10*60*3/100) # 3 min
-    hyper_params["timestamps_stride"] = 100
+    hyper_params["timestamps"] = int(10*60*3) # 3 min
+    # hyper_params["timestamps_stride"] = 100
 
     # while True:
     sim = Simulation(hyper_params, "1_0")
