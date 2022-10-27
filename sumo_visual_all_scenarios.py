@@ -111,7 +111,8 @@ class RunSimulationProcess(multiprocessing.Process):
 
 def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False, save_gnss=False,
-                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1):
+                   noise_distance=0, repeat=False, cont_prob=False, avg_speed_meter_per_sec=40000/3600, timestamp=1,
+                   save_score=False):
     n_scenarios = 3
     s = time.time()
 
@@ -120,7 +121,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
         run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range,
                                     tot_num_vehicles, i, perception_probability, estimate_detection_error,
                                     use_saved_seed, save_gnss, noise_distance, repeat, cont_prob,
-                                    avg_speed_meter_per_sec, timestamp)
+                                    avg_speed_meter_per_sec, timestamp, save_score)
 
         if i != n_scenarios-1:
             print("#######################################################################################################")
@@ -132,7 +133,7 @@ def run_simulation(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
 def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_num_vehicles,
                                 scenario_num, perception_probability, estimate_detection_error,
                                 use_saved_seed=False, save_gnss=False, noise_distance=0, repeat=False, cont_prob=False,
-                                avg_speed_meter_per_sec=40000 / 3600, timestamp=1):
+                                avg_speed_meter_per_sec=40000 / 3600, timestamp=1, save_score=False):
     time_threshold = 10
     n_threads = 12
     path = f"{base_dir}/toronto_{scenario_num}/"
@@ -147,7 +148,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
             state_path = ""
 
             if timestamp == 1:
-                state_path = os.path.join(path, "saved_state",
+                state_path = os.path.join(os.path.dirname(scenario_path), "saved_state",
                              "state_" + str(cv2x_percentage)
                              + "_" + str(fov)
                              + "_" + str(view_range)
@@ -160,7 +161,7 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
                              + ("_cont_prob" if cont_prob else "_discont_prob")
                              + ".pkl")
             else:
-                state_path = os.path.join(path, "saved_state",
+                state_path = os.path.join(os.path.dirname(scenario_path), "saved_state",
                                           "state_" + str(cv2x_percentage)
                                           + "_" + str(fov)
                                           + "_" + str(view_range)
@@ -174,35 +175,8 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
                                           +f"_{timestamp}"
                                           + ".json")
 
-            state_path = os.path.join(os.path.dirname(scenario_path), "saved_state",
-                                      "state_" + str(cv2x_percentage)
-                                      + "_" + str(fov)
-                                      + "_" + str(view_range)
-                                      + "_" + str(tot_num_vehicles)
-                                      + "_" + str(time_threshold)
-                                      + "_" + str(perception_probability)
-                                      + ("_ede" if estimate_detection_error else "_nede")
-                                      + "_" + str(noise_distance)
-                                      + ("_egps" if noise_distance != 0 else "")
-                                      + ("_cont_prob" if cont_prob else "_discont_prob")
-                                      + ".pkl")
-
-
             if not os.path.isfile(state_path): # and not os.path.isfile(state_path):
                 filtered_maps.append(traffic)
-            else:
-                b=False
-                try:
-                    with open(os.path.join(state_path), 'rb') as fw:
-                        data = pickle.load(fw)
-                        cv2x_vehicles, non_cv2x_vehicles, buildings, cv2x_perceived_non_cv2x_vehicles,\
-                        scores_per_cv2x, los_statuses, vehicles, cv2x_perceived_non_cv2x_vehicles,\
-                        cv2x_vehicles_perception_visible, tot_perceived_objects, tot_visible_objects = data
-                except:
-                    b=True
-
-                if b:
-                    filtered_maps.append(traffic)
 
         maps = filtered_maps
 
@@ -231,14 +205,15 @@ def run_simulation_one_scenario(base_dir, cv2x_percentage, fov, view_range, tot_
                                                  use_saved_seed=use_saved_seed, save_gnss=save_gnss,
                                                  noise_distance=noise_distance, repeat=repeat, cont_prob=cont_prob,
                                                  avg_speed_meter_per_sec= avg_speed_meter_per_sec, timestamp=timestamp,
-                                                 save_scores=False)
+                                                 save_scores=save_score)
 
         simulation_thread.start()
         list_threads.append(simulation_thread)
 
     max_block_size = (len(maps) - block_size*(len(list_threads)-1)) # length of the last block
     max_block_size = max(block_size, max_block_size)
-    timeout = 300 * 60 * max_block_size
+    # timeout = 300 * 60 * max_block_size
+    timeout = 55000
 
     if timeout < 60:
         print("timeout was", timeout)
@@ -343,7 +318,7 @@ if __name__ == '__main__':
                    cv2x_percentage=0.65, fov=360, view_range=37.5, tot_num_vehicles=min_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
                    repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
-                   avg_speed_meter_per_sec=avg_speed_sec, timestamp=int(10*60*1))
+                   avg_speed_meter_per_sec=avg_speed_sec, timestamp=int(10*60*2), save_score=False)
     print("*******************************************************************************************")
     end_time = time.time()
 

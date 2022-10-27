@@ -26,7 +26,7 @@ class myThread (threading.Thread):
                                      "--net-file test.net.xml --osm-files map.osm --type-file typemap.xml "
                                      "-o map.poly.xml --xml-validation never && "
                                      "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml "
-                                     "--fringe-factor 1000 --intermediate 30 --validate -p 0.125 -b 0 -e 55 " # generates ~220 vehicles 
+                                     "--fringe-factor 1000 --intermediate 5 --validate -p 0.125 -b 0 -e 55 " # generates ~220 vehicles 
                                      "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
                 '''
                 Key Params Explanations:
