@@ -14,6 +14,7 @@ from math_utils import euclidean_distance, in_and_near_edge, get_dist_from_to
 from sumo_visualizer import SumoVisualizer
 from vehicle_info import Vehicle
 
+os.environ["SUMO_HOME"] = "C:/Users/hakim/repos/sumo-1.14.1/"
 
 if 'SUMO_HOME' in os.environ:
     tools = os.path.join(os.environ['SUMO_HOME'], 'tools')
@@ -155,11 +156,18 @@ class Simulation:
         correct_los, correct_nlos, unsure_los, unsure_nlos, incorrect_los, incorrect_nlos = 0, 0, 0, 0, 0, 0
 
         av_ids = list(av.keys())
+        av_ids_set = set(av_ids)
         scores_per_av = {}
+
+        # print(len(av_perceiving_nav_vehicles.items()))
+        # m = 0
+        # for sender_av_id, perceived_nav_ids in av_perceiving_nav_vehicles.items():
+        #     m = max(m, len(perceived_nav_ids))
+        # print("max navs is:", m)
 
         for sender_av_id, perceived_nav_ids in av_perceiving_nav_vehicles.items():
             sender_av = av[sender_av_id]
-            other_av_ids = list(set(av_ids) - set([sender_av_id]))
+            other_av_ids = list(av_ids_set - set([sender_av_id]))
             scores = []
             perceived_av = []
 
@@ -172,18 +180,26 @@ class Simulation:
                     perceived_av.append(av[perceived_av_id])
 
             for receiver_av_id in other_av_ids:
+                receiver_av = av[receiver_av_id]
                 receiver_is_in_sender_perception_area = False
 
                 if av[receiver_av_id] in perceived_av:
                     perceived_av.remove(av[receiver_av_id])
                     receiver_is_in_sender_perception_area = True
 
+                sender_receiver_distance = euclidean_distance(sender_av.center_pos, receiver_av.center_pos)
+                # print(sender_receiver_distance)
+
+                if sender_receiver_distance > 500: # receiver is out of comm range
+                    continue
+
+                perceived_nav_ids_set = set(perceived_nav_ids)
+
                 for perceived_nav_id in perceived_nav_ids:
 
-                    remaining_perceived_non_cv2x_ids = list(set(perceived_nav_ids)-set([perceived_nav_id]))
+                    remaining_perceived_non_cv2x_ids = list(perceived_nav_ids_set-set([perceived_nav_id]))
                     remaining_perceived_nav = [non_av[id] for id in remaining_perceived_non_cv2x_ids]
 
-                    receiver_av = av[receiver_av_id]
                     perceived_nav = non_av[perceived_nav_id]
 
                     p = sender_av.calculate_probability_av_sees_nav(receiver_av,
@@ -335,7 +351,7 @@ class Simulation:
         return min_distance, min_dist_destination
 
     def run(self, use_seed=True):
-        sumoBinary = "/usr/bin/sumo"
+        sumoBinary = "C:/Users/hakim/repos/sumo-1.14.1/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
         sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end',
                    f'--step-length=0.1']
@@ -382,7 +398,7 @@ class Simulation:
             # print("Step:", step)
             # if traci.inductionloop.getLastStepVehicleNumber("1") > 0:
             #     traci.trafficlight.setRedYellowGreenState("0", "GrGr")
-            # print(step)
+            print(step)
             traci.simulationStep()
             traci.route.getIDList()
 
@@ -484,12 +500,12 @@ class Simulation:
 
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
-            # seen_time_start = time.time()
+            seen_time_start = time.time()
             cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
                                                                       list(non_cv2x_vehicles.values()), buildings)
-            # seen_time_end = time.time()
-            # print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
-            #       f"took {seen_time_end - seen_time_start} seconds")
+            seen_time_end = time.time()
+            print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
+                  f"took {seen_time_end - seen_time_start} seconds")
 
             tot_perceived_objects = 0
             tot_visible_objects = 0
@@ -557,7 +573,7 @@ class Simulation:
 
             # 3) Solve which info to send to base station
             # 3.1) Calculate required information
-            # score_time_start = time.time()
+            score_time_start = time.time()
             if self.hyper_params["save_scores"]:
                 scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
                                                                                cv2x_vehicles, non_cv2x_vehicles, buildings,
@@ -565,8 +581,8 @@ class Simulation:
             else:
                 scores_per_cv2x, los_statuses = {}, []
 
-            # score_time_end = time.time()
-            # print(f"Scores Calculations done took {score_time_end - score_time_start} seconds")
+            score_time_end = time.time()
+            print(f"Scores Calculations done took {score_time_end - score_time_start} seconds")
             # traci.close()
             # return
 
@@ -643,7 +659,7 @@ class Simulation:
 
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_1/0/'
+    basedir = 'C:/Users/hakim/data/toronto_broadcasting_with_score/toronto_2/0/'
 
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
     hyper_params['scenario_map'] =  os.path.join(basedir, "net.sumo.cfg")
@@ -651,8 +667,8 @@ if __name__ == '__main__':
 
     hyper_params["cv2x_N"] = 0.65
     hyper_params["fov"] = 360
-    hyper_params["view_range"] = 37.5
-    hyper_params['tot_num_vehicles'] = 50
+    hyper_params["view_range"] = 150
+    hyper_params['tot_num_vehicles'] = 250
     hyper_params['time_threshold'] = 10
     hyper_params['noise_distance'] = 0
     hyper_params['perception_probability'] = 1
@@ -660,12 +676,12 @@ if __name__ == '__main__':
     hyper_params['save_gnss'] = False
     hyper_params['continous_probability'] = False
     hyper_params["avg_speed_meter_per_sec"] = 10
-    hyper_params['save_visual'] = False
-    hyper_params["save_scores"] = False
+    hyper_params['save_visual'] = True
+    hyper_params["save_scores"] = True
 
-    hyper_params["timestamps"] = int(10*60*3) # 3 min
-    # hyper_params["timestamps_stride"] = 100
+    hyper_params["timestamps"] = int(10*60*2) # 2 min
 
-    # while True:
-    sim = Simulation(hyper_params, "1_0")
-    sim.run(True)
+    sim = Simulation(hyper_params, "2_0")
+    print(hyper_params["save_scores"])
+    sim.run(False)
+    # 3:52:35 --> 597 --> 4:22:50

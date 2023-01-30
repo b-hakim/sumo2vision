@@ -1,5 +1,7 @@
 import json
 import random
+from math import ceil
+
 import traci
 import numpy as np
 from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
@@ -373,15 +375,15 @@ class Vehicle:
                         else:
                             return 0
 
-        buildings_in_sight = []
-
-        for building in buildings:
-            if self.can_see_building(building):
-                buildings_in_sight.append(building)
+        # buildings_in_sight = []
+        #
+        # for building in buildings:
+        #     if self.can_see_building(building):
+        #         buildings_in_sight.append(building)
 
         interpolations = np.linspace(LoS[0:2],
                                      LoS[2:4],
-                                     int(euclidean_distance(LoS[0:2], LoS[2:4]) * 2))
+                                     int(euclidean_distance(LoS[0:2], LoS[2:4])/5))
 
         for occlusion_vehicle in vehicles_in_my_perception_range:
             if occlusion_vehicle.vehicle_id == av.vehicle_id \
@@ -400,13 +402,18 @@ class Vehicle:
                         return uncertain_probability
                         # return 0.5
 
-        for building in buildings_in_sight:
-            for point in interpolations:
-                line_sender_to_interpolated_point = list(self.get_pos()) + point.tolist()
+        # this part is commented as self can see the receiver already
+        # therefore, it doesnt make sense that there is a building occluding the LoS(av, nav)
+        # especially that at this point, we checked that there is no building in between
+        # (no matter it is perceived or not by self)
 
-                if does_line_intersect_polygon(line_sender_to_interpolated_point, building.shape):
-                    return uncertain_probability
-                    # return 0.5
+        # for building in buildings_in_sight:
+        #     for point in interpolations:
+        #         line_sender_to_interpolated_point = list(self.get_pos()) + point.tolist()
+        #
+        #         if does_line_intersect_polygon(line_sender_to_interpolated_point, building.shape):
+        #             return uncertain_probability
+        #             # return 0.5
 
             # self can see these points, but need to validate if an occlusion occurs.
 

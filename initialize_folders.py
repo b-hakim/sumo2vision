@@ -1,6 +1,8 @@
 import os
 import shutil
 import threading
+os.environ["PATH"] = os.environ["PATH"] + ";C:/Users/hakim/repos/sumo-1.14.1/bin/"
+os.environ["SUMO_HOME"] = "C:/Users/hakim/repos/sumo-1.14.1/"
 
 
 class myThread (threading.Thread):
@@ -21,7 +23,7 @@ class myThread (threading.Thread):
 
                 # https://sumo.dlr.de/docs/Tools/Trip.html
                 os.system(
-                    "cd " + dirname + " && pwd && netconvert --osm-files map.osm -o test.net.xml "
+                    "cd " + dirname + " && netconvert --osm-files map.osm -o test.net.xml "
                                      "-t osmNetconvert.typ.xml --xml-validation never && polyconvert "
                                      "--net-file test.net.xml --osm-files map.osm --type-file typemap.xml "
                                      "-o map.poly.xml --xml-validation never && "
@@ -43,7 +45,7 @@ class myThread (threading.Thread):
 if __name__ == '__main__':
     # path = '/media/bassel/Career/toronto_content_selection/toronto'
     # path = '/home/bassel/toronto_AVpercentage_RBs'
-    path = '/media/bassel/Career/toronto_broadcasting/'
+    path = 'C:/Users/hakim/data/toronto_broadcasting/'
     maps = './data'
     nruns_per_scenario = 100
     nruns_per_scenario = 12
