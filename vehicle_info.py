@@ -3,6 +3,7 @@ import random
 from math import ceil
 
 import traci
+import libsumo
 import numpy as np
 from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_vector, does_line_intersect_polygon, \
     in_and_near_edge, get_dist_from_to, get_new_abs_pos
@@ -11,9 +12,9 @@ from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_
 class Vehicle:
     def __init__(self, vehicle_id, view_range, fov):
         try:
-            self.dimension = (traci.vehicle.getWidth(vehicle_id),
-                              traci.vehicle.getLength(vehicle_id),
-                              traci.vehicle.getHeight(vehicle_id))
+            self.dimension = (libsumo.vehicle.getWidth(vehicle_id),
+                              libsumo.vehicle.getLength(vehicle_id),
+                              libsumo.vehicle.getHeight(vehicle_id))
         except:
             self.dimension = (5,5,5)
 
@@ -21,7 +22,7 @@ class Vehicle:
         self.viewing_range = view_range
         self.fov = fov
         try:
-            self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
+            self.__previous_edge_road = libsumo.vehicle.getRoute(self.vehicle_id)[0]
         except:
             pass
 
@@ -50,7 +51,7 @@ class Vehicle:
             else:
                 return self._pos
 
-        pos = list(traci.vehicle.getPosition(self.vehicle_id))
+        pos = list(libsumo.vehicle.getPosition(self.vehicle_id))
         self._pos = pos
 
         if self.gps_pos_error is None or not with_gps_error:
@@ -87,7 +88,7 @@ class Vehicle:
         if self._speed is not None:
             return self._speed
 
-        speed = traci.vehicle.getSpeed(self.vehicle_id)
+        speed = libsumo.vehicle.getSpeed(self.vehicle_id)
         self._speed = speed
         return speed
 
@@ -96,7 +97,7 @@ class Vehicle:
         if self._acc is not None:
             return self._acc
 
-        acc =  traci.vehicle.getAcceleration(self.vehicle_id)
+        acc =  libsumo.vehicle.getAcceleration(self.vehicle_id)
         self._acc = acc
         return acc
 
@@ -105,7 +106,7 @@ class Vehicle:
         if self._orientation_ang_degree is not None:
             return self._orientation_ang_degree
 
-        vehicle_angle_degree = traci.vehicle.getAngle(self.vehicle_id)
+        vehicle_angle_degree = libsumo.vehicle.getAngle(self.vehicle_id)
         # - angle for making it ccw
         # +90 for the desired angle is based on the x axis while traci has angle based on y axis
         vehicle_angle_degree = (- vehicle_angle_degree + 90) % 360
@@ -127,7 +128,7 @@ class Vehicle:
         return np.array(heading_unit_vector)
 
     def get_current_road(self):
-        return traci.vehicle.getRoadID(self.vehicle_id)
+        return libsumo.vehicle.getRoadID(self.vehicle_id)
 
     def toJSON(self):
         return {"vehicle_id":self.vehicle_id, "viewing_range": self.viewing_range, "fov": self.fov,
@@ -137,7 +138,7 @@ class Vehicle:
 
     @staticmethod
     def dist_between_edges(first_edge, next_edge):
-        r = traci.simulation.findRoute(first_edge._id, next_edge._id)
+        r = libsumo.simulation.findRoute(first_edge._id, next_edge._id)
         # assert len(r.edges) == 2 or len(r.edges) == 1
         return r.length - first_edge.getLength() - next_edge.getLength()
 
@@ -163,8 +164,8 @@ class Vehicle:
         return 3600 * (d / 40000)
 
     def get_future_route(self, net, time_threshold):
-        full_route = traci.vehicle.getRoute(self.vehicle_id)
-        current_road = traci.vehicle.getRoadID(self.vehicle_id)
+        full_route = libsumo.vehicle.getRoute(self.vehicle_id)
+        current_road = libsumo.vehicle.getRoadID(self.vehicle_id)
 
         if current_road[0] == ":":
             current_road = self.__previous_edge_road
@@ -183,7 +184,7 @@ class Vehicle:
             else:
                 break
 
-        current_road = traci.vehicle.getRoadID(self.vehicle_id)
+        current_road = libsumo.vehicle.getRoadID(self.vehicle_id)
 
         if current_road[0] == ":":
             trimmed_future_route = [current_road] + trimmed_future_route

@@ -1,11 +1,14 @@
 import json
+import multiprocessing
 import os, sys
 import pickle
 import random
+import threading
 import time
 from ast import literal_eval
 from typing import List, Dict
 
+import libsumo
 import numpy as np
 import sumolib
 import traci
@@ -28,6 +31,18 @@ def distance_prev_curr_edge(prev_edge_points, curr_edge_points):
                    euclidean_distance(prev_edge_points[0], curr_edge_points[-1]),
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[0]),
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[-1])])
+
+
+class RunSimulationProcess(threading.Thread):
+    def __init__(self, av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj):
+        super(RunSimulationProcess, self).__init__()
+        self.av_perceiving_nav_vehicles, self.av, self.non_av, self.buildings, self.time_threshold, \
+            self.simulation_obj = av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj
+        self.ret = None
+
+    def run(self) -> None:
+        self.ret = self.simulation_obj.calculate_scores_per_cv2x( self.av_perceiving_nav_vehicles, self.av,
+                                                                  self.non_av, self.buildings, self.time_threshold)
 
 
 class Simulation:
@@ -150,6 +165,42 @@ class Simulation:
         else:
             return p/t
 
+    def calculate_scores_per_cv2x_parallel(self, av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold):
+        # idea:
+        # divide the av_perceiving_nav_vehicle
+        # run parallel threads to calculate the scores for each sublist
+        # merge the score
+        keys = list(av_perceiving_nav_vehicles.keys())
+
+        threads_lst = []
+        nthreads = 12
+        blocksize = len(keys)//nthreads
+
+        for i in range(nthreads):
+            start = i * blocksize
+            end = start + blocksize
+
+            if i + 1 == nthreads:
+                end = len(keys)
+
+            av_perceiving_nav_vehicles_sub = dict((k, av_perceiving_nav_vehicles[k]) for k in keys[start:end])
+
+            sim_thread = RunSimulationProcess(av_perceiving_nav_vehicles_sub, av, non_av, buildings,
+                                              time_threshold, self)
+            sim_thread.start()
+            threads_lst.append(sim_thread)
+
+        for i in range(nthreads):
+            threads_lst[i].join()
+
+        ret_scores_per_av = {}
+
+        for sim_thread in threads_lst:
+            scores_per_av, _ = sim_thread.ret
+            ret_scores_per_av.update(scores_per_av)
+
+        return ret_scores_per_av, [0, 0, 0, 0, 0, 0]
+
     def calculate_scores_per_cv2x(self, av_perceiving_nav_vehicles,
                                   av, non_av,
                                   buildings, time_threshold):
@@ -170,6 +221,7 @@ class Simulation:
             other_av_ids = list(av_ids_set - set([sender_av_id]))
             scores = []
             perceived_av = []
+            perceived_nav_ids_set = set(perceived_nav_ids)
 
             for perceived_av_id in other_av_ids:
                 # This is considered as ignoring the sender camera and using location from the receiver GNSS location
@@ -193,10 +245,7 @@ class Simulation:
                 if sender_receiver_distance > 500: # receiver is out of comm range
                     continue
 
-                perceived_nav_ids_set = set(perceived_nav_ids)
-
                 for perceived_nav_id in perceived_nav_ids:
-
                     remaining_perceived_non_cv2x_ids = list(perceived_nav_ids_set-set([perceived_nav_id]))
                     remaining_perceived_nav = [non_av[id] for id in remaining_perceived_non_cv2x_ids]
 
@@ -209,34 +258,34 @@ class Simulation:
                                                                     self.hyper_params["perception_probability"],
                                                                     self.hyper_params["continous_probability"])
 
-                    if p == 1:
-                        # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
-                        # if sender sees that LOS between receiver and perceived_obj and is NLOS then incorrect LOS ++
-                        if receiver_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
-                                correct_los += 1
-                            else:
-                                incorrect_los += 1
-                        else:
-                            incorrect_los += 1
-                    elif p == 0:
-                        # if sender sees that NLOS between receiver and perceived_obj is NLOS then correct NLOS ++
-                        # if sender sees that NLOS between receiver and perceived_obj is LOS then incorrect NLOS ++
-                        if receiver_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
-                                incorrect_nlos += 1
-                            else:
-                                correct_nlos += 1
-                        else:
-                            correct_nlos += 1
-                    else:
-                        if receiver_av_id in av_perceiving_nav_vehicles:
-                            if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
-                                unsure_los += 1
-                            else:
-                                unsure_nlos += 1
-                        else:
-                            unsure_nlos += 1
+                    # if p == 1:
+                    #     # if sender sees that LOS between receiver and perceived_obj and is LOS then correct LOS ++
+                    #     # if sender sees that LOS between receiver and perceived_obj and is NLOS then incorrect LOS ++
+                    #     if receiver_av_id in av_perceiving_nav_vehicles:
+                    #         if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
+                    #             correct_los += 1
+                    #         else:
+                    #             incorrect_los += 1
+                    #     else:
+                    #         incorrect_los += 1
+                    # elif p == 0:
+                    #     # if sender sees that NLOS between receiver and perceived_obj is NLOS then correct NLOS ++
+                    #     # if sender sees that NLOS between receiver and perceived_obj is LOS then incorrect NLOS ++
+                    #     if receiver_av_id in av_perceiving_nav_vehicles:
+                    #         if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
+                    #             incorrect_nlos += 1
+                    #         else:
+                    #             correct_nlos += 1
+                    #     else:
+                    #         correct_nlos += 1
+                    # else:
+                    #     if receiver_av_id in av_perceiving_nav_vehicles:
+                    #         if perceived_nav_id in av_perceiving_nav_vehicles[receiver_av_id]:
+                    #             unsure_los += 1
+                    #         else:
+                    #             unsure_nlos += 1
+                    #     else:
+                    #         unsure_nlos += 1
 
                     if self.hyper_params["estimate_detection_error"]:
                         if p == 1: # cv2x receiver sees object to be sent, then add probability it doesnt sees it!
@@ -256,6 +305,7 @@ class Simulation:
                     perceived_av.append(av[receiver_av_id])
 
             scores_per_av[sender_av_id] = scores
+
         return scores_per_av, [correct_los, correct_nlos, incorrect_los, incorrect_nlos, unsure_los, unsure_nlos]
 
     def get_shortest_route(self, cv2x_veh_pos, noncv2x_veh_pos, non_cv2x_edge, list_destination_edges):
@@ -263,12 +313,12 @@ class Simulation:
         min_dist_destination = None
 
         for destination_edge in list_destination_edges:
-            route = traci.simulation.findRoute(non_cv2x_edge, destination_edge)
+            route = libsumo.simulation.findRoute(non_cv2x_edge, destination_edge)
 
             if len(route.edges) == 0:
                 continue
 
-            cv2x_dist_to_segment = traci.simulation.findRoute(list_destination_edges[0], destination_edge).length
+            cv2x_dist_to_segment = libsumo.simulation.findRoute(list_destination_edges[0], destination_edge).length
 
             if list_destination_edges[0][0] == ":":
                 if cv2x_dist_to_segment == 0:
@@ -355,8 +405,8 @@ class Simulation:
         #sumoBinary = "C:/Users/hakim/repos/sumo-1.14.1/bin/sumo"
         # sumoBinary = "/usr/bin/sumo-gui"
         sumoCmd = [sumoBinary, "-c", self.hyper_params['scenario_map'], '--no-warnings', '--quit-on-end',
-                   f'--step-length=0.1']
-        traci.start(sumoCmd)
+                   f'--step-length=0.1' ]
+        libsumo.start(sumoCmd)
         step = 0
         timestamps_recorded = 0
         # time_stamps_stride = 1
@@ -400,21 +450,21 @@ class Simulation:
             # if traci.inductionloop.getLastStepVehicleNumber("1") > 0:
             #     traci.trafficlight.setRedYellowGreenState("0", "GrGr")
             print(step)
-            traci.simulationStep()
-            traci.route.getIDList()
+            libsumo.simulationStep()
+            libsumo.route.getIDList()
 
             if timestamps_recorded != 0 and self.hyper_params["save_visual"]:
                 viz = SumoVisualizer(self.hyper_params)
 
             # 1) Get All Vehicles with Wireless
-            vehicle_ids = traci.vehicle.getIDList()
+            vehicle_ids = libsumo.vehicle.getIDList()
             prev_vehicles_ids = set(vehicles.keys())
 
             # tracking_vehicles_time_start = time.time()
 
             for vid in vehicle_ids:
                 if vid in prev_vehicles_ids:
-                    v_road_id = traci.vehicle.getRoadID(vid)
+                    v_road_id = libsumo.vehicle.getRoadID(vid)
                     vehicles[vid].update_latest_edge_road(v_road_id)
                 else:
                     vehicles[vid] = Vehicle(vehicle_id=vid, view_range=self.hyper_params["view_range"],
@@ -576,9 +626,14 @@ class Simulation:
             # 3.1) Calculate required information
             score_time_start = time.time()
             if self.hyper_params["save_scores"]:
-                scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
-                                                                               cv2x_vehicles, non_cv2x_vehicles, buildings,
+                scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x_parallel(cv2x_perceived_non_cv2x_vehicles,
+                                                                               cv2x_vehicles, non_cv2x_vehicles,
+                                                                               buildings,
                                                                                self.hyper_params['time_threshold'])
+
+                # scores_per_cv2x, los_statuses = self.calculate_scores_per_cv2x(cv2x_perceived_non_cv2x_vehicles,
+                #                                                                cv2x_vehicles, non_cv2x_vehicles, buildings,
+                #                                                                self.hyper_params['time_threshold'])
             else:
                 scores_per_cv2x, los_statuses = {}, []
 
@@ -655,12 +710,12 @@ class Simulation:
 
         # input("Simulation ended, close GUI?")
         print(f"Simulation #{self.sim_id} terminated!")#, scores_per_cv2x.items())
-        traci.close()
+        libsumo.close()
 
 
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_2/0/'
+    basedir = '/media/bassel/Career/toronto_broadcasting_scores/toronto_2/0/'
     # basedir = 'C:/Users/hakim/data/toronto_broadcasting_with_score/toronto_2/0/'
 
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
