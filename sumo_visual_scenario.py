@@ -294,12 +294,14 @@ class Simulation:
 
                     p = 1 - p # set to 0 if cv2x sees the object to be sent
 
-                    if p == 0:
-                        scores.append((receiver_av_id, 0, perceived_nav, p))
-                    else:
+                    # if p == 0:
+                    #     scores.append((receiver_av_id, 0, perceived_nav, p))
+                    # else:
+                    if p != 0:
                         v = self.get_interest_cv2x_in_vehicle(receiver_av,
                                                           perceived_nav, p, time_threshold)
-                        scores.append((receiver_av_id, v, perceived_nav, p))
+                        if v != 0:
+                            scores.append((receiver_av_id, v, perceived_nav, p))
 
                 if receiver_is_in_sender_perception_area:
                     perceived_av.append(av[receiver_av_id])
