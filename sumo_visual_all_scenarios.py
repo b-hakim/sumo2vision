@@ -315,10 +315,10 @@ if __name__ == '__main__':
     start_time = time.time()
 
     run_simulation(base_dir=base_dir,
-                   cv2x_percentage=0.65, fov=360, view_range=37.5, tot_num_vehicles=min_num_vehicles,
+                   cv2x_percentage=0.65, fov=360, view_range=150, tot_num_vehicles=min_num_vehicles,
                    perception_probability=1, estimate_detection_error=False, use_saved_seed=False,
                    repeat=False, save_gnss=False, noise_distance=0, cont_prob=False,
-                   avg_speed_meter_per_sec=avg_speed_sec, timestamp=int(10*60*1), save_score=False)
+                   avg_speed_meter_per_sec=avg_speed_sec, timestamp=int(10*60*5), save_score=True)
     print("*******************************************************************************************")
     end_time = time.time()
 

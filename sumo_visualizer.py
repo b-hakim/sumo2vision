@@ -50,8 +50,8 @@ class SumoVisualizer:
 
         xmax, ymax = polys[:, 0].max(), polys[:, 1].max()
         # self.padding = 100
-        self.scale = 10
-        # self.scale = 1
+        # self.scale = 10
+        self.scale = 1
         self.img = np.ones((self.scale*(int(ymax+1)), self.scale*(int(xmax+1)), 3), dtype=np.uint8) * 255
         buildings.sort(key=lambda x:x.layer)
 

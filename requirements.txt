@@ -1,6 +1,5 @@
 matplotlib
 numpy
-ortools
 opencv-python
 sumolib
 traci
