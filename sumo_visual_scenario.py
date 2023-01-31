@@ -382,7 +382,7 @@ class Simulation:
             # print("Step:", step)
             # if traci.inductionloop.getLastStepVehicleNumber("1") > 0:
             #     traci.trafficlight.setRedYellowGreenState("0", "GrGr")
-            # print(step)
+            print(step)
             traci.simulationStep()
             traci.route.getIDList()
 
@@ -610,17 +610,17 @@ class Simulation:
                     data = {
                         "perception": {avid:list(lst_navids) for avid,lst_navids in cv2x_perceived_non_cv2x_vehicles.items()},
                         # "visibility": {avid:list(lst_navids) for avid,lst_navids in cv2x_vehicles_perception_visible.items()},
-                            "avs" : [vehicles[av].toJSON() for av in cv2x_vehicles],
-                            "navs" : [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
-                            "av_scores": {avid:[[score[0], score[1], score[2].vehicle_id, score[3]]
+                        "avs": {av: vehicles[av].toJSON() for av in cv2x_vehicles},
+                        "navs": {nav: vehicles[nav].toJSON() for nav in non_cv2x_vehicles},
+                        "av_scores": {avid:[[score[0], score[1], score[2].vehicle_id, score[3]]
                                                  for score in lst_scores] for avid, lst_scores in scores_per_cv2x.items()}
                             }
                 else:
                     data = {
                         "perception": { avid: list(lst_navids) for avid, lst_navids in
                                        cv2x_perceived_non_cv2x_vehicles.items() },
-                        "avs": [vehicles[av].toJSON() for av in cv2x_vehicles],
-                        "navs": [vehicles[nav].toJSON() for nav in non_cv2x_vehicles],
+                        "avs": { av : vehicles[av].toJSON() for av in cv2x_vehicles },
+                        "navs": { nav: vehicles[nav].toJSON() for nav in non_cv2x_vehicles },
                     }
 
                 with open(json_filename, 'w', encoding='utf-8') as f:
@@ -643,7 +643,7 @@ class Simulation:
 
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_1/0/'
+    basedir = '/media/bassel/Career/toronto_broadcasting/toronto_2/0/'
 
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
     hyper_params['scenario_map'] =  os.path.join(basedir, "net.sumo.cfg")
@@ -662,7 +662,6 @@ if __name__ == '__main__':
     hyper_params["avg_speed_meter_per_sec"] = 10
     hyper_params['save_visual'] = False
     hyper_params["save_scores"] = False
-
     hyper_params["timestamps"] = int(10*60*3) # 3 min
     # hyper_params["timestamps_stride"] = 100
 

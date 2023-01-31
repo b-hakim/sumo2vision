@@ -8,14 +8,21 @@ from math_utils import euclidean_distance, inner_angle_between_two_vectors, get_
 
 class Vehicle:
     def __init__(self, vehicle_id, view_range, fov):
-        self.dimension = (traci.vehicle.getWidth(vehicle_id),
-                          traci.vehicle.getLength(vehicle_id),
-                          traci.vehicle.getHeight(vehicle_id))
+        try:
+            self.dimension = (traci.vehicle.getWidth(vehicle_id),
+                              traci.vehicle.getLength(vehicle_id),
+                              traci.vehicle.getHeight(vehicle_id))
+        except:
+            self.dimension = (5,5,5)
 
         self.vehicle_id = vehicle_id
         self.viewing_range = view_range
         self.fov = fov
-        self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
+        try:
+            self.__previous_edge_road = traci.vehicle.getRoute(self.vehicle_id)[0]
+        except:
+            pass
+
         self.gps_pos_error = None
         self._pos = None
         self._center = None
