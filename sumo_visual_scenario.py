@@ -6,6 +6,7 @@ import random
 import threading
 import time
 from ast import literal_eval
+from multiprocessing import Queue
 from typing import List, Dict
 
 import libsumo
@@ -33,16 +34,31 @@ def distance_prev_curr_edge(prev_edge_points, curr_edge_points):
                    euclidean_distance(prev_edge_points[-1], curr_edge_points[-1])])
 
 
-class RunSimulationProcess(threading.Thread):
-    def __init__(self, av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj):
-        super(RunSimulationProcess, self).__init__()
-        self.av_perceiving_nav_vehicles, self.av, self.non_av, self.buildings, self.time_threshold, \
-            self.simulation_obj = av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj
-        self.ret = None
+class RunSimulationProcessPerceptionCalc(multiprocessing.Process):
+    def __init__(self, cv2x_vehicles, non_cv2x_vehicles, buildings, subset, simulation_obj, queue):
+        super(RunSimulationProcessPerceptionCalc, self).__init__()
+        self.cv2x_vehicles, self.non_cv2x_vehicles, self.buildings, \
+                self.subset, self.simulation_obj = cv2x_vehicles, non_cv2x_vehicles, buildings, subset, simulation_obj
+
+        self.queue = queue
 
     def run(self) -> None:
-        self.ret = self.simulation_obj.calculate_scores_per_cv2x( self.av_perceiving_nav_vehicles, self.av,
+        ret = self.simulation_obj.get_seen_vehicles( self.cv2x_vehicles, self.non_cv2x_vehicles,
+                                                     self.buildings, self.subset)
+        self.queue.put(ret)
+
+
+class RunSimulationProcessScoreCalc(multiprocessing.Process):
+    def __init__(self, av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj, queue):
+        super(RunSimulationProcessScoreCalc, self).__init__()
+        self.av_perceiving_nav_vehicles, self.av, self.non_av, self.buildings, self.time_threshold, \
+            self.simulation_obj = av_perceiving_nav_vehicles, av, non_av, buildings, time_threshold, simulation_obj
+        self.queue = queue
+
+    def run(self) -> None:
+        ret = self.simulation_obj.calculate_scores_per_cv2x( self.av_perceiving_nav_vehicles, self.av,
                                                                   self.non_av, self.buildings, self.time_threshold)
+        self.queue.put(ret)
 
 
 class Simulation:
@@ -51,7 +67,42 @@ class Simulation:
         self.net = sumolib.net.readNet(hyper_params['scenario_path'])
         self.sim_id = id
 
-    def get_seen_vehicles(self, cv2x_vehicles, non_cv2x_vehicles, buildings):
+    def get_seen_vehicles_parallel(self, cv2x_vehicles, non_cv2x_vehicles, buildings):
+        # idea:
+        # divide the av_perceiving_nav_vehicle
+        # run parallel threads to calculate the scores for each sublist
+        # merge the score
+
+        keys = cv2x_vehicles
+
+        threads_lst = []
+        nthreads = 12
+        blocksize = len(keys)//nthreads
+        queue = Queue()
+
+        for i in range(nthreads):
+            start = i * blocksize
+            end = start + blocksize
+
+            if i + 1 == nthreads:
+                end = len(keys)
+
+            subset = [k for k  in range(start, end)]
+            sim_thread = RunSimulationProcessPerceptionCalc(cv2x_vehicles, non_cv2x_vehicles, buildings,
+                                                            subset, self, queue)
+            sim_thread.start()
+            threads_lst.append(sim_thread)
+
+        ret_cv2x_vehicles_perception, ret_cv2x_vehicles_perception_visible = {}, {}
+
+        for sim_thread in threads_lst:
+            cv2x_vehicles_perception, cv2x_vehicles_perception_visible = queue.get()
+            ret_cv2x_vehicles_perception.update(cv2x_vehicles_perception)
+            ret_cv2x_vehicles_perception_visible.update(ret_cv2x_vehicles_perception_visible)
+
+        return ret_cv2x_vehicles_perception, ret_cv2x_vehicles_perception_visible
+
+    def get_seen_vehicles(self, cv2x_vehicles, non_cv2x_vehicles, buildings, subset=None):
         """
         1- Use angle of view to get all vehicles in range
         2- Use vector from each cv2x_vehicle to all non-cv2x-vehicles
@@ -62,7 +113,12 @@ class Simulation:
         cv2x_vehicles_perception = {}
         cv2x_vehicles_perception_visible = {}
 
-        for cv2x_vehicle in cv2x_vehicles:
+        if subset is None:
+            mysubset = cv2x_vehicles
+        else:
+            mysubset = [cv2x_vehicles[k] for k in subset]
+
+        for cv2x_vehicle in mysubset:
             local_non_cv2x_vehicles = set()
             for non_cv2x_vehicle in non_cv2x_vehicles:
                 if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, detection_probability=1):
@@ -70,8 +126,9 @@ class Simulation:
 
             local_cv2x_vehicles = set()
             for local_cv2x_vehicle in cv2x_vehicles:
-                if cv2x_vehicle.has_in_perception_range(non_cv2x_vehicle, False, False, detection_probability=1):
-                    local_cv2x_vehicles.add(local_cv2x_vehicle)
+                if cv2x_vehicle.vehicle_id != local_cv2x_vehicle.vehicle_id:
+                    if cv2x_vehicle.has_in_perception_range(local_cv2x_vehicle, False, False, detection_probability=1):
+                        local_cv2x_vehicles.add(local_cv2x_vehicle)
 
             buildings_in_sight = set()
             for building in buildings:
@@ -175,6 +232,7 @@ class Simulation:
         threads_lst = []
         nthreads = 12
         blocksize = len(keys)//nthreads
+        queue = Queue()
 
         for i in range(nthreads):
             start = i * blocksize
@@ -185,18 +243,18 @@ class Simulation:
 
             av_perceiving_nav_vehicles_sub = dict((k, av_perceiving_nav_vehicles[k]) for k in keys[start:end])
 
-            sim_thread = RunSimulationProcess(av_perceiving_nav_vehicles_sub, av, non_av, buildings,
-                                              time_threshold, self)
+            sim_thread = RunSimulationProcessScoreCalc(av_perceiving_nav_vehicles_sub, av, non_av, buildings,
+                                                       time_threshold, self, queue)
             sim_thread.start()
             threads_lst.append(sim_thread)
 
-        for i in range(nthreads):
-            threads_lst[i].join()
+        # for i in range(nthreads):
+        #     threads_lst[i].join()
 
         ret_scores_per_av = {}
 
         for sim_thread in threads_lst:
-            scores_per_av, _ = sim_thread.ret
+            scores_per_av, _ = queue.get()
             ret_scores_per_av.update(scores_per_av)
 
         return ret_scores_per_av, [0, 0, 0, 0, 0, 0]
@@ -461,7 +519,7 @@ class Simulation:
             # 1) Get All Vehicles with Wireless
             vehicle_ids = libsumo.vehicle.getIDList()
             prev_vehicles_ids = set(vehicles.keys())
-
+            # print(len(vehicle_ids))
             # tracking_vehicles_time_start = time.time()
 
             for vid in vehicle_ids:
@@ -554,8 +612,10 @@ class Simulation:
 
             # 2) Get seen non-cv2x vehicles by each cv2x_vehicle
             seen_time_start = time.time()
-            cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
+            cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles_parallel(list(cv2x_vehicles.values()),
                                                                       list(non_cv2x_vehicles.values()), buildings)
+            # cv2x_perceived_non_cv2x_vehicles, cv2x_vehicles_perception_visible = self.get_seen_vehicles(list(cv2x_vehicles.values()),
+            #                                                           list(non_cv2x_vehicles.values()), buildings)
             seen_time_end = time.time()
             print(f"Perception Simulation done for {len(vehicles)} vehicles, frame: {step}, "
                   f"took {seen_time_end - seen_time_start} seconds")
@@ -717,7 +777,13 @@ class Simulation:
 
 if __name__ == '__main__':
     hyper_params = {}
-    basedir = '/media/bassel/Career/toronto_broadcasting_scores/toronto_2/0/'
+    basedir = '/media/bassel/Career/toronto_broadcasting_scores/new_toronto2_high_density/'
+    basedir = '/media/bassel/Career/toronto_broadcasting_scores/dataset/av_25/urban_high_density/'
+    # basedir = '/media/bassel/Career/toronto_broadcasting_scores/dataset/urban-map/high_density/'
+    # basedir = '/media/bassel/Career/toronto_broadcasting_scores/dataset/urban-map/low_density/'
+    # basedir = '/media/bassel/Career/toronto_broadcasting_scores/dataset/highway-map/high_density/'
+    # basedir = '/media/bassel/Career/toronto_broadcasting_scores/dataset/highway-map/low_density/'
+    #
     # basedir = 'C:/Users/hakim/data/toronto_broadcasting_with_score/toronto_2/0/'
 
     hyper_params['scenario_path'] = os.path.join(basedir, "test.net.xml")
@@ -725,9 +791,12 @@ if __name__ == '__main__':
     hyper_params['scenario_polys'] = os.path.join(basedir, "map.poly.xml")
 
     hyper_params["cv2x_N"] = 0.65
+    hyper_params["cv2x_N"] = 0.25
     hyper_params["fov"] = 360
     hyper_params["view_range"] = 150
     hyper_params['tot_num_vehicles'] = 250
+    hyper_params['tot_num_vehicles'] = 325
+    # hyper_params['tot_num_vehicles'] = 150
     hyper_params['time_threshold'] = 10
     hyper_params['noise_distance'] = 0
     hyper_params['perception_probability'] = 1
@@ -737,7 +806,7 @@ if __name__ == '__main__':
     hyper_params["avg_speed_meter_per_sec"] = 10
     hyper_params['save_visual'] = False
     hyper_params["save_scores"] = True
-    hyper_params["timestamps"] = int(10*60*2) # 2 min
+    hyper_params["timestamps"] = int(10*60*1) # 1 min
     # hyper_params["timestamps_stride"] = 100
 
     sim = Simulation(hyper_params, "2_0")

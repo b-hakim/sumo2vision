@@ -1,8 +1,8 @@
 import os
 import shutil
 import threading
-os.environ["PATH"] = os.environ["PATH"] + ";C:/Users/hakim/repos/sumo-1.14.1/bin/"
-os.environ["SUMO_HOME"] = "C:/Users/hakim/repos/sumo-1.14.1/"
+# os.environ["PATH"] = os.environ["PATH"] + ";C:/Users/hakim/repos/sumo-1.14.1/bin/"
+# os.environ["SUMO_HOME"] = "C:/Users/hakim/repos/sumo-1.14.1/"
 
 
 class myThread (threading.Thread):
@@ -28,7 +28,8 @@ class myThread (threading.Thread):
                                      "--net-file test.net.xml --osm-files map.osm --type-file typemap.xml "
                                      "-o map.poly.xml --xml-validation never && "
                                      "python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml "
-                                     "--fringe-factor 1000 --intermediate 5 --validate -p 0.125 -b 0 -e 55 " # generates ~220 vehicles 
+                                     # "--fringe-factor 1000 --intermediate 5 --validate -p 0.125 -b 0 -e 55 " # generates ~416 vehicles 
+                                     "--fringe-factor 1000 --intermediate 5 --validate -p 0.1 -b 0 -e 25 " # generates ~ vehicles 
                                      "--trip-attributes=\"type=\\\"typedist1\\\"\" --additional-file typedistrib1.xml")
                 '''
                 Key Params Explanations:
@@ -40,41 +41,66 @@ class myThread (threading.Thread):
                     -e              The time to end the generation of vehicles (sometimes it generates afterwards)
                     -p              the period between vehicles. This is also helps defining the number of vehicles 
                                     where n = (e-b)/2p or p = (e-b)/2n
+cmd1: 'netconvert --osm-files map.osm -o test.net.xml -t osmNetconvert.typ.xml --xml-validation never && polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml -o map.poly.xml --xml-validation never'
+250veh/km cmd2: 'python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 1000 --intermediate 5 --validate -p 0.06 -b 0 -e 120 --trip-attributes="type=\"typedist1\"" --additional-file typedistrib1.xml'                                    
+450 veh/km cmd2: 'python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --intermediate 5 --validate -p 0.01 -b 0 -e 120 --trip-attributes="type=\"typedist1\"" --additional-file typedistrib1.xml'                                    
                 '''
 
 if __name__ == '__main__':
     # path = '/media/bassel/Career/toronto_content_selection/toronto'
-    # path = '/home/bassel/toronto_AVpercentage_RBs'
-    path = 'C:/Users/hakim/data/toronto_broadcasting/'
-    maps = './data'
-    nruns_per_scenario = 100
-    nruns_per_scenario = 12
+    output_dataset_path = '/media/bassel/Career/toronto_broadcasting_scores/dataset'
+    output_dataset_path = '/media/bassel/Career/toronto_broadcasting_scores/dataset/'
+    # path = 'C:/Users/hakim/data/toronto_broadcasting/'
+    maps_path = './data'
+    maps_path = '/media/bassel/Career/toronto_broadcasting_scores/maps'
+    nruns_per_scenario = 1
+    # nruns_per_scenario = 12
 
-    if os.path.exists(path):
-        shutil.rmtree(path, True)
+    if os.path.exists(output_dataset_path):
+        shutil.rmtree(output_dataset_path, True)
 
-    os.makedirs(path)
+    os.makedirs(output_dataset_path)
 
-    file_names = os.listdir(maps)
+    file_names = os.listdir(maps_path)
     map_file_names = [name for name in file_names if name.find(".osm") != -1]
     base_pos_file_names = [name for name in file_names if name.find(".txt") != -1]
     map_file_names.sort()
 
     base_name='toronto_'
+    rename_ds = False
+    base_name=''
 
     for i in range(len(map_file_names)):
-        os.makedirs(path+"/"+base_name+str(i))
+        if rename_ds:
+            os.makedirs(output_dataset_path + "/" + base_name + str(i))
+        else:
+            os.makedirs(output_dataset_path + "/" + base_name + map_file_names[i].replace(".osm", ""))
 
         for sub_folder in range(nruns_per_scenario):
-            dirname = path+"/"+base_name+str(i) + "/" + str(sub_folder)+ "/"
+            if rename_ds:
+                dirname = output_dataset_path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
+            else:
+                dirname = output_dataset_path + "/" + base_name + map_file_names[i].replace(".osm", "") + "/" + str(sub_folder) + "/"
+
             os.makedirs(dirname)
 
-    for i, (map_name, base_pos_name) in enumerate(zip(map_file_names, base_pos_file_names)):
-        for sub_folder in range(nruns_per_scenario):
-            dirname = path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
+    for i in range(len(map_file_names)):#, base_pos_file_names)):
+        map_name =  map_file_names[i]
+        base_pos_name = ""
 
-            shutil.copy(maps + "/" + map_name, dirname + "/map.osm")
-            shutil.copy(maps + "/" + base_pos_name, dirname + "/basestation_pos.txt")
+        if len(base_pos_file_names) == len(map_file_names):
+            base_pos_name = base_pos_file_names[i]
+
+        for sub_folder in range(nruns_per_scenario):
+            if rename_ds:
+                dirname = output_dataset_path + "/" + base_name + str(i) + "/" + str(sub_folder) + "/"
+            else:
+                dirname = output_dataset_path + "/" + base_name + map_file_names[i].replace(".osm", "") + "/" + str(sub_folder) + "/"
+
+            shutil.copy(maps_path + "/" + map_name, dirname + "/map.osm")
+
+            if base_pos_name != "":
+                shutil.copy(maps_path + "/" + base_pos_name, dirname + "/basestation_pos.txt")
 
     src_files = [os.path.dirname(__file__) + '/sumo_files/net.sumo.cfg',
                 os.path.dirname(__file__) + '/sumo_files/net2geojson.py',
@@ -97,7 +123,10 @@ if __name__ == '__main__':
 
         print("thread " + str(i) + " launched")
 
-        dirnames = [path + "/" + base_name + str(i) for i in range(start, end)]
+        if rename_ds:
+            dirnames = [output_dataset_path + "/" + base_name + str(i) for i in range(start, end)]
+        else:
+            dirnames = [output_dataset_path + "/" + base_name + map_file_names[i].replace(".osm", "") for i in range(start, end)]
 
         initialize_maps_thread = myThread(src_files, dirnames, nruns_per_scenario)
         initialize_maps_thread.start()

@@ -64,6 +64,8 @@ def generateTestCase1(save_dir):
             "perception": perception,
             "avs": {"A":vehicles[0].toJSON(), "B":vehicles[1].toJSON()},
             "navs": {"X" : vehicles[2].toJSON()},
+            "scores": {"A":["B", 1/euclidean_distance(vehicles[1].get_pos(), vehicles[2].get_pos()), "X", 1],
+                       "B":["A", 1/euclidean_distance(vehicles[0].get_pos(), vehicles[2].get_pos()), "X", 1]}
         }
 
         json_filename = f"{save_dir}/state_{i+1}.json"
@@ -72,4 +74,4 @@ def generateTestCase1(save_dir):
             json.dump(data, f, ensure_ascii=False, indent=4)
 
 if __name__ == '__main__':
-    generateTestCase1("/media/bassel/Career/toronto_broadcasting/testcases/1/")
+    generateTestCase1("/media/bassel/Career/toronto_broadcasting_scores/testcases/1/")

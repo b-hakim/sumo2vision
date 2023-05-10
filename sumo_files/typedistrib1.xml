@@ -1,10 +1,10 @@
 <routes>
     <vTypeDistribution id="typedist1">
-        <vType id="type1" vClass="passenger" probability="0.50"/>
-    	<vType id="type2" vClass="truck" probability="0.1"/>
-        <vType id="type3" vClass="bus" probability="0.1"/>
-        <vType id="type4" vClass="trailer" probability="0.1"/>
-        <vType id="type5" vClass="emergency" probability="0.05"/>
-        <vType id="type6" vClass="taxi" probability="0.15"/>
+        <vType id="type1" vClass="passenger" maxSpeed="70" probability="0.50"/>
+    	<vType id="type2" vClass="truck" maxSpeed="70" probability="0.1"/>
+        <vType id="type3" vClass="bus" maxSpeed="70" probability="0.1"/>
+        <vType id="type4" vClass="trailer" maxSpeed="70" probability="0.1"/>
+        <vType id="type5" vClass="emergency" maxSpeed="70" probability="0.05"/>
+        <vType id="type6" vClass="taxi" maxSpeed="70" probability="0.15"/>
     </vTypeDistribution>
 </routes>
