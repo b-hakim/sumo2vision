@@ -42,6 +42,7 @@ class myThread (threading.Thread):
                     -p              the period between vehicles. This is also helps defining the number of vehicles 
                                     where n = (e-b)/2p or p = (e-b)/2n
 cmd1: 'netconvert --osm-files map.osm -o test.net.xml -t osmNetconvert.typ.xml --xml-validation never && polyconvert --net-file test.net.xml --osm-files map.osm --type-file typemap.xml -o map.poly.xml --xml-validation never'
+160veh/km cmd2: 'python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 1000 --intermediate 5 --validate -p 0.75 -b 0 -e 120 --trip-attributes="type=\"typedist1\"" --additional-file typedistrib1.xml'                                    
 250veh/km cmd2: 'python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --fringe-factor 1000 --intermediate 5 --validate -p 0.06 -b 0 -e 120 --trip-attributes="type=\"typedist1\"" --additional-file typedistrib1.xml'                                    
 450 veh/km cmd2: 'python randomTrips.py --random -n test.net.xml -r map.rou.xml -o trips.trips.xml --intermediate 5 --validate -p 0.01 -b 0 -e 120 --trip-attributes="type=\"typedist1\"" --additional-file typedistrib1.xml'                                    
                 '''
